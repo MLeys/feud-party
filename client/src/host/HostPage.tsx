@@ -23,7 +23,7 @@ export default function HostPage() {
   const onAuth = (pin: string) => {
     setAuthError(null);
     socket.emit("host:auth", { pin }, (res: { ok: boolean }) => {
-      if (!res.ok) {
+      if (!res || !res.ok) {
         setAuthed(false);
         setAuthError("Invalid PIN. Check the TV board.");
         return;
@@ -57,7 +57,13 @@ export default function HostPage() {
       <HostStage state={state} authed={authed} onAuth={onAuth} send={send} />
       {authError ? (
         <div style={{ position: "fixed", left: 12, right: 12, bottom: 12 }}>
-          <div className="card" style={{ borderColor: "rgba(255,90,90,0.45)", background: "rgba(255,70,70,0.12)" }}>
+          <div
+            className="card"
+            style={{
+              borderColor: "rgba(255,90,90,0.45)",
+              background: "rgba(255,70,70,0.12)"
+            }}
+          >
             <div style={{ fontWeight: 950 }}>Auth Error</div>
             <div className="small" style={{ marginTop: 4 }}>
               {authError}

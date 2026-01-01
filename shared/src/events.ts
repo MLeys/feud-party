@@ -9,4 +9,11 @@ export type GameEvent =
   | { type: "START_STEAL" }
   | { type: "STEAL_RESULT"; success: boolean; stolenAnswerId?: string }
   | { type: "NEXT_ROUND" }
-  | { type: "END_GAME" };
+  | { type: "END_GAME" }
+
+  // ===== Buzz system (host + server) =====
+  | { type: "OPEN_BUZZ"; mode: "FACE_OFF" | "PLAY" }            // host
+  | { type: "RESET_BUZZ" }                                      // host
+  | { type: "OVERRIDE_BUZZ"; team: TeamId }                     // host
+  | { type: "APPLY_BUZZ" }                                      // host
+  | { type: "BUZZ_LOCK"; team: TeamId; socketId: string };      // server (first buzz wins)

@@ -1,4 +1,4 @@
-import type { FeudRound, GameState, RoundState, TeamId } from "./types";
+import type { FeudRound, GameState, RoundState, TeamId, BuzzState } from "./types";
 import type { GameEvent } from "./events";
 
 function makeRoundState(round: FeudRound, roundIndex: number): RoundState {
@@ -22,6 +22,16 @@ function otherTeam(team: TeamId): TeamId {
   return team === "A" ? "B" : "A";
 }
 
+function makeEmptyBuzz(): BuzzState {
+  return {
+    open: false,
+    mode: null,
+    winnerTeam: null,
+    winnerSocketId: null,
+    openedAt: null
+  };
+}
+
 export function createInitialState(args: { hostPin: string; rounds: FeudRound[]; packId: string }): GameState {
   return {
     phase: "SETUP",
@@ -31,6 +41,7 @@ export function createInitialState(args: { hostPin: string; rounds: FeudRound[];
     packId: args.packId,
     rounds: args.rounds,
     current: null,
+    buzz: makeEmptyBuzz(),
     lastEventId: 0
   };
 }
@@ -51,7 +62,8 @@ export function reducer(state: GameState, event: GameEvent): GameState {
         },
         packId: event.packId,
         phase: "FACE_OFF",
-        current: firstRound ? makeRoundState(firstRound, 0) : null
+        current: firstRound ? makeRoundState(firstRound, 0) : null,
+        buzz: makeEmptyBuzz()
       };
     }
 
@@ -66,6 +78,104 @@ export function reducer(state: GameState, event: GameEvent): GameState {
       };
     }
 
+    case "OPEN_BUZZ": {
+      // Host opens the window; wipe any previous winner to avoid confusion.
+      return {
+        ...state,
+        lastEventId: nextEventId,
+        buzz: {
+          open: true,
+          mode: event.mode,
+          winnerTeam: null,
+          winnerSocketId: null,
+          openedAt: Date.now()
+        }
+      };
+    }
+
+    case "RESET_BUZZ": {
+      return {
+        ...state,
+        lastEventId: nextEventId,
+        buzz: makeEmptyBuzz()
+      };
+    }
+
+    case "BUZZ_LOCK": {
+      // Server locks the first buzz only if currently open and no winner yet.
+      if (!state.buzz.open) return { ...state, lastEventId: nextEventId };
+      if (state.buzz.winnerTeam) return { ...state, lastEventId: nextEventId };
+
+      return {
+        ...state,
+        lastEventId: nextEventId,
+        buzz: {
+          ...state.buzz,
+          open: false,
+          winnerTeam: event.team,
+          winnerSocketId: event.socketId
+        }
+      };
+    }
+
+    case "OVERRIDE_BUZZ": {
+      // Host forces a winner; also closes any open buzz window.
+      return {
+        ...state,
+        lastEventId: nextEventId,
+        buzz: {
+          ...state.buzz,
+          open: false,
+          winnerTeam: event.team
+          // keep winnerSocketId as-is (may be null) so "you won" is only for natural winners
+        }
+      };
+    }
+
+    case "APPLY_BUZZ": {
+      const win = state.buzz.winnerTeam;
+      const cur = state.current;
+
+      if (!win) return { ...state, lastEventId: nextEventId };
+      if (!cur) return { ...state, lastEventId: nextEventId };
+
+      // Applying consumes the buzzer state so the TV overlay doesn't stick.
+      const clearedBuzz = makeEmptyBuzz();
+
+      // Face-off application: set control + active and transition to PLAY.
+      if (state.phase === "FACE_OFF") {
+        return {
+          ...state,
+          lastEventId: nextEventId,
+          phase: "PLAY",
+          current: {
+            ...cur,
+            controlTeam: win,
+            activeTeam: win,
+            strikes: 0,
+            roundPoints: 0
+          },
+          buzz: clearedBuzz
+        };
+      }
+
+      // Play application: set activeTeam only (controlTeam stays the same).
+      if (state.phase === "PLAY") {
+        return {
+          ...state,
+          lastEventId: nextEventId,
+          current: {
+            ...cur,
+            activeTeam: win
+          },
+          buzz: clearedBuzz
+        };
+      }
+
+      // Otherwise ignore (but still consume to avoid sticky UI, by design).
+      return { ...state, lastEventId: nextEventId, buzz: clearedBuzz };
+    }
+
     case "SET_FACE_OFF_WINNER": {
       if (!state.current) return { ...state, lastEventId: nextEventId };
       return {
@@ -78,7 +188,8 @@ export function reducer(state: GameState, event: GameEvent): GameState {
           activeTeam: event.team,
           strikes: 0,
           roundPoints: 0
-        }
+        },
+        buzz: makeEmptyBuzz()
       };
     }
 
@@ -116,7 +227,8 @@ export function reducer(state: GameState, event: GameEvent): GameState {
           ...state,
           lastEventId: nextEventId,
           phase: "STEAL",
-          current: { ...cur, strikes, activeTeam: otherTeam(cur.controlTeam) }
+          current: { ...cur, strikes, activeTeam: otherTeam(cur.controlTeam) },
+          buzz: makeEmptyBuzz()
         };
       }
 
@@ -134,7 +246,8 @@ export function reducer(state: GameState, event: GameEvent): GameState {
         ...state,
         lastEventId: nextEventId,
         phase: "STEAL",
-        current: { ...cur, activeTeam: otherTeam(cur.controlTeam) }
+        current: { ...cur, activeTeam: otherTeam(cur.controlTeam) },
+        buzz: makeEmptyBuzz()
       };
     }
 
@@ -168,7 +281,8 @@ export function reducer(state: GameState, event: GameEvent): GameState {
         teams: {
           ...state.teams,
           [winner]: { ...state.teams[winner], score: state.teams[winner].score + updatedCur.roundPoints }
-        }
+        },
+        buzz: makeEmptyBuzz()
       };
     }
 
@@ -177,24 +291,25 @@ export function reducer(state: GameState, event: GameEvent): GameState {
       const nextIndex = currentIndex + 1;
 
       if (nextIndex >= state.config.gameLength) {
-        return { ...state, lastEventId: nextEventId, phase: "GAME_END" };
+        return { ...state, lastEventId: nextEventId, phase: "GAME_END", buzz: makeEmptyBuzz() };
       }
 
       const nextRound = state.rounds[nextIndex];
       if (!nextRound) {
-        return { ...state, lastEventId: nextEventId, phase: "GAME_END" };
+        return { ...state, lastEventId: nextEventId, phase: "GAME_END", buzz: makeEmptyBuzz() };
       }
 
       return {
         ...state,
         lastEventId: nextEventId,
         phase: "FACE_OFF",
-        current: makeRoundState(nextRound, nextIndex)
+        current: makeRoundState(nextRound, nextIndex),
+        buzz: makeEmptyBuzz()
       };
     }
 
     case "END_GAME":
-      return { ...state, lastEventId: nextEventId, phase: "GAME_END" };
+      return { ...state, lastEventId: nextEventId, phase: "GAME_END", buzz: makeEmptyBuzz() };
 
     default:
       return { ...state, lastEventId: nextEventId };

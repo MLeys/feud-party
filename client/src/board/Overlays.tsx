@@ -21,6 +21,30 @@ function phaseTitle(phase: GameState["phase"]) {
 }
 
 export default function Overlays({ state }: OverlaysProps) {
+  // Buzzer overlay takes priority
+  if (state.buzz && state.buzz.open) {
+    const mode = state.buzz.mode ? state.buzz.mode : "—";
+    return (
+      <div className="overlayLayer">
+        <div className="overlayCard">
+          <h2 className="overlayTitle">Buzz Now!</h2>
+          <div className="overlaySub">Phones: open /buzz · Mode: {mode}</div>
+        </div>
+      </div>
+    );
+  }
+
+  if (state.buzz && !state.buzz.open && state.buzz.winnerTeam) {
+    return (
+      <div className="overlayLayer">
+        <div className="overlayCard">
+          <h2 className="overlayTitle">Team {state.buzz.winnerTeam} Buzzed!</h2>
+          <div className="overlaySub">Host: Apply winner or override</div>
+        </div>
+      </div>
+    );
+  }
+
   const title = phaseTitle(state.phase);
   if (!title) return null;
 

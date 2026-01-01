@@ -1,0 +1,82 @@
+@import "../board/board.css";
+
+.buzzRoot {
+  min-height: 100vh;
+  background:
+    radial-gradient(900px 500px at 50% -10%, rgba(120, 65, 255, 0.30), transparent 62%),
+    radial-gradient(900px 550px at 20% 8%, rgba(0, 160, 255, 0.16), transparent 60%),
+    linear-gradient(180deg, var(--bg1) 0%, var(--bg0) 60%);
+  color: var(--text);
+  display: grid;
+  place-items: center;
+  padding: 18px;
+  box-sizing: border-box;
+  font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
+}
+
+.buzzCard {
+  width: min(520px, 100%);
+  border-radius: var(--radius-xl);
+  border: 1px solid var(--border);
+  background: rgba(255,255,255,0.06);
+  box-shadow: var(--shadow-soft);
+  padding: 16px;
+  display: grid;
+  gap: 12px;
+}
+
+.buzzTitle {
+  margin: 0;
+  font-size: 16px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--muted);
+  font-weight: 950;
+}
+
+.teamRow {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.teamBtn {
+  border-radius: 16px;
+  border: 1px solid var(--border2);
+  background: rgba(255,255,255,0.08);
+  color: rgba(255,255,255,0.92);
+  padding: 14px 12px;
+  font-size: 16px;
+  font-weight: 950;
+}
+
+.teamBtnActive {
+  border-color: rgba(255, 220, 110, 0.50);
+  background: rgba(255, 200, 0, 0.18);
+}
+
+.bigBuzz {
+  border-radius: 26px;
+  border: 1px solid rgba(255, 220, 110, 0.55);
+  background: rgba(255, 200, 0, 0.18);
+  color: rgba(255,255,255,0.96);
+  padding: 18px;
+  font-size: 32px;
+  font-weight: 950;
+  letter-spacing: 0.04em;
+  height: 140px;
+}
+
+.bigBuzz:disabled {
+  opacity: 0.5;
+}
+
+.status {
+  border-radius: 18px;
+  border: 1px solid rgba(255,255,255,0.14);
+  background: rgba(0,0,0,0.18);
+  padding: 12px;
+  font-size: 14px;
+  color: rgba(255,255,255,0.82);
+  line-height: 1.35;
+}

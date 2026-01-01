@@ -27,4 +27,18 @@ export type GameEvent = {
     type: "NEXT_ROUND";
 } | {
     type: "END_GAME";
+} | {
+    type: "OPEN_BUZZ";
+    mode: "FACE_OFF" | "PLAY";
+} | {
+    type: "RESET_BUZZ";
+} | {
+    type: "OVERRIDE_BUZZ";
+    team: TeamId;
+} | {
+    type: "APPLY_BUZZ";
+} | {
+    type: "BUZZ_LOCK";
+    team: TeamId;
+    socketId: string;
 };

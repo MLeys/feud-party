@@ -24,6 +24,14 @@ export type TeamState = {
     name: string;
     score: number;
 };
+export type BuzzMode = "FACE_OFF" | "PLAY";
+export type BuzzState = {
+    open: boolean;
+    mode: BuzzMode | null;
+    winnerTeam: TeamId | null;
+    winnerSocketId: string | null;
+    openedAt: number | null;
+};
 export type RoundState = {
     roundIndex: number;
     prompt: string;
@@ -43,5 +51,6 @@ export type GameState = {
     packId: string;
     rounds: FeudRound[];
     current: RoundState | null;
+    buzz: BuzzState;
     lastEventId: number;
 };

@@ -42,6 +42,18 @@ io.on("connection", (socket) => {
     cb && cb({ ok });
   });
 
+  // ===== Phone buzzer (no host auth required) =====
+  socket.on("buzz:press", (payload: { team: "A" | "B" }) => {
+    const team = payload && payload.team ? payload.team : null;
+    if (team !== "A" && team !== "B") return;
+
+    // First buzz wins (server-authoritative)
+    if (!state.buzz.open || state.buzz.winnerTeam) return;
+
+    state = reducer(state, { type: "BUZZ_LOCK", team, socketId: socket.id });
+    broadcastState();
+  });
+
   socket.on("game:event", (event: GameEvent, cb?: (res: { ok: boolean; error?: string }) => void) => {
     const isHost = Boolean((socket.data as SocketData).isHost);
     if (!isHost) {

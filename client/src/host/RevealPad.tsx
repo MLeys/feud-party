@@ -16,17 +16,18 @@ export default function RevealPad({ round, onReveal, disabled }: RevealPadProps)
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
         {slots.map((i) => {
-          const a = round?.answers[i];
+          const a = round && round.answers && round.answers[i] ? round.answers[i] : null;
           const empty = !a;
-          const revealed = a ? Boolean(round?.revealedAnswerIds[a.id]) : false;
+          const revealed =
+            a && round && round.revealedAnswerIds ? Boolean(round.revealedAnswerIds[a.id]) : false;
 
-          const label = empty ? `${i + 1}` : revealed ? `✓ ${i + 1}` : `${i + 1}`;
+          const label = empty ? String(i + 1) : revealed ? "✓ " + String(i + 1) : String(i + 1);
 
           return (
             <button
               key={i}
               className="btn btnPrimary"
-              disabled={disabled || empty || revealed}
+              disabled={Boolean(disabled || empty || revealed)}
               onClick={() => {
                 if (!a) return;
                 onReveal(a.id);
@@ -40,8 +41,17 @@ export default function RevealPad({ round, onReveal, disabled }: RevealPadProps)
               }}
             >
               <span style={{ fontWeight: 950 }}>{label}</span>
-              <span style={{ opacity: empty ? 0.45 : 0.85, fontWeight: 900, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 180 }}>
-                {a?.text ?? "—"}
+              <span
+                style={{
+                  opacity: empty ? 0.45 : 0.85,
+                  fontWeight: 900,
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                  maxWidth: 180
+                }}
+              >
+                {a ? a.text : "—"}
               </span>
             </button>
           );

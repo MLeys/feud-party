@@ -1,38 +1,66 @@
-````md
-# Feud Party (LAN) — Family Feud-Style Game
+Below is your **updated README**, rewritten to **preserve your structure and tone** while accurately reflecting the **current system** (phone buzzers, host override/apply, UX changes, server-authoritative flow).
 
-A local-network (LAN) Family Feud-style party game with:
-- **TV Board** display (`/board`) — view-only for players
-- **Host Console** (`/host`) — PIN-gated controls + answer key
-- **2 teams**, classic round flow: **Face-off → Play → 3 strikes → Steal → Score**
-
-This repo is an npm-workspaces monorepo:
-- `client/` — React + Vite (TypeScript)
-- `server/` — Node + Express + Socket.IO (TypeScript)
-- `shared/` — game engine types + reducer (TypeScript)
-
-> Important: `server` and `client` depend on the shared package via `file:../shared` (not `workspace:*`) due to an npm/workspace protocol issue in this environment. This is expected and working.
+You can replace your existing README with this verbatim.
 
 ---
 
-## Quick Links (Routes)
+````md
+# Feud Party (LAN) — Family Feud-Style Game
 
-When running in **dev**:
+A modern, local-network (LAN) **Family Feud–style party game** designed for a real living-room setup:
+
+- **TV Board** (`/board`) — large, show-style display (view-only)
+- **Host Console** (`/host`) — PIN-gated control panel (laptop recommended)
+- **Player Buzzers** (`/buzz`) — phones buzz in for face-offs and steals
+- **2 teams**, classic flow: **Face-off → Play → 3 Strikes → Steal → Score**
+
+All devices run in a browser and must be on the **same Wi-Fi network**.
+
+---
+
+## Architecture Overview
+
+This repo is an **npm workspaces monorepo**:
+
+- `client/` — React + Vite (TypeScript)
+  - Board UI
+  - Host Console UI
+  - Phone Buzzer UI
+- `server/` — Node + Express + Socket.IO (TypeScript)
+  - Authoritative game state
+  - Host authentication (PIN)
+  - Buzzer lockout logic
+- `shared/` — Game engine (TypeScript)
+  - Shared types
+  - Reducer (single source of truth)
+
+> **Important:**  
+> `client` and `server` depend on `shared` via `file:../shared` (not `workspace:*`) due to npm workspace protocol issues in this environment.  
+> This is expected and **working correctly**.
+
+---
+
+## Routes / Quick Links
+
+### Development (Vite + dev server)
 - TV Board: `http://<LAPTOP_IP>:5173/board`
 - Host Console: `http://<LAPTOP_IP>:5173/host`
-- Server: `http://<LAPTOP_IP>:3000` (Socket.IO + production static serving)
+- Player Buzzers: `http://<LAPTOP_IP>:5173/buzz`
+- Server (Socket.IO): `http://<LAPTOP_IP>:3000`
 
-When running in **production** (after build):
+### Production (single server on port 3000)
 - TV Board: `http://<LAPTOP_IP>:3000/board`
 - Host Console: `http://<LAPTOP_IP>:3000/host`
+- Player Buzzers: `http://<LAPTOP_IP>:3000/buzz`
 
 ---
 
 ## Requirements
 
 - macOS (instructions assume macOS)
-- Node.js + npm installed
-- All devices (TV + phones) on the **same Wi-Fi** network
+- Node.js + npm
+- All devices (TV, laptop, phones) on the **same Wi-Fi network**
+- TV browser with decent JS support (Chromecast, Fire TV, Roku browser, or HDMI laptop)
 
 ---
 
@@ -58,8 +86,6 @@ You will use **two terminals**.
 
 ### Terminal 1 — Start server
 
-From repo root:
-
 ```bash
 npm run dev:server
 ```
@@ -71,23 +97,22 @@ Expected output includes:
 
 Leave this running.
 
-### Terminal 2 — Start client
+---
 
-From repo root:
+### Terminal 2 — Start client
 
 ```bash
 npm run dev:client
 ```
 
-Expected output includes Vite address:
+Expected output includes a Vite URL such as:
 
 * `http://localhost:5173`
-
-Leave this running.
+* `http://192.168.1.25:5173` ← **use this one for LAN**
 
 ---
 
-## Find Your Laptop IP Address (for LAN)
+## Find Your Laptop IP Address (LAN)
 
 On macOS:
 
@@ -95,15 +120,15 @@ On macOS:
 2. Click **Details**
 3. Copy the **IP Address** (example: `192.168.1.25`)
 
-Use that IP on the TV and phones.
+Use this IP on the TV and all phones.
 
 ---
 
 ## Open the Game (LAN)
 
-### 1) TV / Big Screen: open the Board
+### 1) TV / Big Screen — Board
 
-On your TV browser (or laptop connected to TV), open:
+On the TV browser (or laptop connected to TV):
 
 ```
 http://<LAPTOP_IP>:5173/board
@@ -112,85 +137,136 @@ http://<LAPTOP_IP>:5173/board
 You should see:
 
 * The game board UI
-* A **Host PIN** displayed (4 digits)
+* A **4-digit Host PIN** (top-right)
 
-### 2) Host (Phone): open the Host Console
+---
 
-On the host phone browser (same Wi-Fi), open:
+### 2) Host — Host Console
+
+On the host’s **laptop (recommended)** or phone:
 
 ```
 http://<LAPTOP_IP>:5173/host
 ```
 
-Enter the PIN shown on the TV board.
-
-After successful PIN entry, host controls unlock.
+Enter the PIN shown on the board.
+Once authenticated, all host controls unlock.
 
 ---
 
-## Run the Game (How to Play)
+### 3) Players — Phone Buzzers
 
-### A) Start a game (Host)
+On **each player’s phone**:
+
+```
+http://<LAPTOP_IP>:5173/buzz
+```
+
+Each player:
+
+* Chooses **Team A** or **Team B**
+* Uses the **BUZZ** button when the host opens it
+
+---
+
+## How to Play (Host-Driven Flow)
+
+### A) Start the Game (Setup)
 
 On the Host Console:
 
-1. Optionally edit **Team A** and **Team B** names
-2. Click:
+1. Edit **Team A** and **Team B** names (optional)
+2. Choose:
 
-   * **Start (3 rounds)** (quick game)
-   * **Start (5 rounds)** (classic game)
+   * **Start (3 rounds)** — quick game
+   * **Start (5 rounds)** — classic game
 
-The TV board updates to Round 1.
+Board transitions to **Face-Off**.
 
 ---
 
-### B) Round flow (Classic Family Feud)
+### B) Face-Off (with Phone Buzzers)
 
-#### 1) Face-Off
+**Recommended flow (best practice):**
 
-Host selects who wins control:
-
-* Click **Face-off Winner: A** or **Face-off Winner: B**
-
-This sets:
-
-* `controlTeam` and `activeTeam` and moves to **PLAY**
-
-#### 2) Play (Control team guesses)
-
-As the team calls guesses out loud:
-
-* If correct: host clicks **Reveal #1**, **Reveal #2**, etc.
-
-  * The board reveals the tile
-  * Points automatically add to the **round bank**
-* If wrong: host clicks **Add Strike**
-
-  * After 3 strikes, the game automatically transitions to **STEAL**
-
-#### 3) Steal (Other team gets one guess)
-
-The opposing team gets one chance:
-
-* If they guess an unrevealed answer: click **Steal: Success**
-* If they fail: click **Steal: Fail**
+1. Host clicks **Open Buzz (Face-off)**
+2. Phones buzz in
+3. **First buzz wins** (server-locked, fair)
+4. Board shows winning team
+5. Host clicks **Apply Winner to Game**
 
 Result:
 
-* If success: stealing team wins **all banked round points**
-* If fail: control team wins **all banked round points**
-* Score totals update on the board
+* `controlTeam` and `activeTeam` set
+* Phase moves to **PLAY**
 
-#### 4) Next round
-
-Host clicks **Next Round** to move to the next round prompt.
+> Manual face-off buttons still exist as a fallback.
 
 ---
 
-### C) End of Game
+### C) Play Phase
 
-The game ends automatically after the selected round count.
-Host can also click **End Game** at any time.
+As teams call out guesses verbally:
+
+* **Correct guess**
+
+  * Host clicks the matching **Reveal** button
+  * Answer flips on the board
+  * Points add to the **round bank**
+* **Wrong guess**
+
+  * Host clicks **Add Strike**
+  * After max strikes → **STEAL**
+
+#### Optional Mid-Round Buzz
+
+At any point in PLAY, host may:
+
+* Click **Open Buzz (Play)**
+* First buzz locks
+* Click **Apply Winner** to change `activeTeam`
+
+---
+
+### D) Steal Phase
+
+The opposing team gets **one guess**.
+
+* If correct:
+
+  * Host taps the unrevealed answer
+  * Stealing team wins **all round points**
+* If incorrect:
+
+  * Host clicks **Steal Failed**
+  * Control team wins **all round points**
+
+Scores update immediately.
+
+---
+
+### E) Next Round / End Game
+
+* **Next Round** → advances to the next prompt
+* Game ends automatically after selected round count
+* Host may click **End Game** at any time to reset
+
+---
+
+## Phone Buzzer Rules (Important)
+
+* Buzzing is **server-authoritative**
+* Only the **first buzz** counts
+* Host controls:
+
+  * **Open Buzz**
+  * **Reset Buzz**
+  * **Override Winner (A/B)**
+  * **Apply Winner to Game**
+* Works for:
+
+  * Face-Off
+  * Mid-round Play
 
 ---
 
@@ -198,30 +274,24 @@ Host can also click **End Game** at any time.
 
 From the Host Console:
 
-* **Mute Board / Unmute Board**
+* **Mute / Unmute Board**
 * **Volume slider (0–100%)**
 
-The board reflects the audio state.
-
-> Note: sound effects are scaffolded. If you later add audio files or WebAudio tones, the board’s “sound hook” is where event-based playback belongs.
+> Audio hooks are already in place for future sound effects.
 
 ---
 
-## Production Mode (Single URL on Port 3000)
+## Production Mode (Single Server on Port 3000)
 
-This mode is best for “party night” because the server hosts the built client.
+Best for actual party night.
 
-### 1) Build everything
-
-From repo root:
+### Build everything
 
 ```bash
 npm run build
 ```
 
-### 2) Start server
-
-From repo root:
+### Start server
 
 ```bash
 npm run start
@@ -231,6 +301,7 @@ Now use:
 
 * Board: `http://<LAPTOP_IP>:3000/board`
 * Host: `http://<LAPTOP_IP>:3000/host`
+* Buzzers: `http://<LAPTOP_IP>:3000/buzz`
 
 ---
 
@@ -242,11 +313,11 @@ Questions live in:
 server/src/pack.ts
 ```
 
-Each round has:
+Each round includes:
 
 * `prompt`
-* `answers[]` (typically 4–8)
-* each answer has `text`, `points`, optional `aliases[]`
+* `answers[]` (4–8 typical)
+* Optional `aliases[]` for future typed guesses
 
 Example:
 
@@ -261,52 +332,38 @@ Example:
 }
 ```
 
-After editing the pack:
+After editing:
 
-1. Restart server (dev) or rebuild server (prod).
-2. Refresh `/board` and `/host`.
+1. Restart server (dev) **or**
+2. Rebuild (`npm run build`) for production
 
 ---
 
 ## Troubleshooting
 
-### 1) TV/phone can’t open the site
+### Devices can’t connect
 
-Checklist:
+* Confirm all devices are on the **same Wi-Fi**
+* Use laptop IP, not `localhost`
+* Avoid guest networks with device isolation
 
-* TV and phones are on the **same Wi-Fi**
-* Use laptop IP (example `192.168.x.x`), not `localhost`
-* Some guest networks block device-to-device traffic (“client isolation”). Use a private/home Wi-Fi.
+### Board doesn’t update
 
-### 2) Host controls don’t affect the board
-
-* Confirm server terminal is running (`npm run dev:server`)
-* Confirm client terminal is running (`npm run dev:client`)
+* Ensure both server and client are running
 * Refresh `/board` and `/host`
-* Re-enter PIN on `/host` if needed
+* Re-enter host PIN if needed
 
-### 3) TypeScript error: “Cannot find module '@feud/shared'”
-
-Cause: shared package exports are in `shared/dist`, which must exist.
-
-Fix:
+### TypeScript error: `Cannot find module '@feud/shared'`
 
 ```bash
 npm run build -w shared
 ```
 
-If VS Code still shows stale errors:
+Then restart dev servers or reload VS Code TS server.
 
-* Command Palette → **TypeScript: Restart TS Server**
-* Or reload the window
+### React `useEffect` cleanup error
 
-### 4) React `useEffect` cleanup TypeScript error
-
-If you see an error like:
-
-> Argument of type '() => () => Socket...' is not assignable to EffectCallback
-
-Fix your cleanup to return `void` (brace form):
+Cleanup must return `void`:
 
 ```ts
 return () => {
@@ -314,34 +371,40 @@ return () => {
 };
 ```
 
-### 5) “workspace:*” install error
+---
 
-If you previously saw:
+## House Rules / Host Tips
 
-> Unsupported URL Type "workspace:": workspace:*
-
-This repo currently uses `file:../shared` for stability.
+* Let buzzers decide face-offs for fairness
+* Use reveal timing to build suspense
+* Override buzzes when needed — host is always in control
+* Laptop host UI is recommended over mobile
 
 ---
 
-## House Rules / Common Host Tips
+## Planned Enhancements
 
-* In Face-Off: you can decide winner manually until phone buzzers are implemented.
-* Use **Reveal** buttons to control pacing and build suspense.
-* You can “Force Start Steal” if you want to jump into steal early for a fun twist.
+* Sound effects (buzz, ding, strike)
+* Typed guesses + alias matching
+* Fast Money round
+* Keyboard hotkeys for host
+* Spectator widgets
 
 ---
 
-## Next Planned Upgrades (Optional)
+## Optional: Party Night Checklist
 
-* Proper sound effects (mp3/wav or WebAudio)
-* Phone “buzzer” for face-off
-* Team answer submission + auto-match via `aliases`
-* Spectator mode and additional display widgets
-* Round multipliers (double/triple)
+* ✅ Test `/board`, `/host`, `/buzz` once before guests arrive
+* ✅ Put laptop on charger
+* ✅ Disable screen sleep on TV/laptop
+* ✅ Keep host on laptop for fastest control
+
+---
+
+Feud Party is designed to feel like a **real game show**:
+one screen, one host, everyone else plays on their phones.
+
+Have fun.
 
 ```
-
-
-If you want, I can also add a short “Party Night Checklist” section (TV setup, network setup, testing flow) and a “Known Issues” section once you confirm the current run works end-to-end.
 ```

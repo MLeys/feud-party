@@ -1,82 +1,160 @@
-@import "../board/board.css";
+/* feud-party/client/src/buzz/buzz.css */
+
+:root {
+  --buzz-bg0: #05050a;
+  --buzz-bg1: #0b0b16;
+
+  --buzz-text: rgba(255, 255, 255, 0.94);
+  --buzz-muted: rgba(255, 255, 255, 0.72);
+
+  --buzz-border: rgba(255, 255, 255, 0.16);
+  --buzz-border2: rgba(255, 255, 255, 0.22);
+
+  --buzz-gold: rgba(255, 200, 0, 0.20);
+  --buzz-gold2: rgba(255, 200, 0, 0.32);
+
+  --buzz-danger: rgba(255, 70, 70, 0.22);
+  --buzz-danger2: rgba(255, 70, 70, 0.34);
+
+  --buzz-radius-xl: 22px;
+  --buzz-radius-lg: 16px;
+  --buzz-shadow: 0 18px 60px rgba(0, 0, 0, 0.45);
+}
 
 .buzzRoot {
   min-height: 100vh;
-  background:
-    radial-gradient(900px 500px at 50% -10%, rgba(120, 65, 255, 0.30), transparent 62%),
-    radial-gradient(900px 550px at 20% 8%, rgba(0, 160, 255, 0.16), transparent 60%),
-    linear-gradient(180deg, var(--bg1) 0%, var(--bg0) 60%);
-  color: var(--text);
   display: grid;
   place-items: center;
-  padding: 18px;
-  box-sizing: border-box;
-  font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
+  padding: 24px;
+
+  color: var(--buzz-text);
+  font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji",
+    "Segoe UI Emoji";
+
+  background:
+    radial-gradient(1000px 560px at 50% -10%, rgba(120, 65, 255, 0.24), transparent 62%),
+    radial-gradient(820px 520px at 20% 5%, rgba(0, 160, 255, 0.18), transparent 60%),
+    linear-gradient(180deg, var(--buzz-bg1) 0%, var(--buzz-bg0) 70%);
 }
 
 .buzzCard {
-  width: min(520px, 100%);
-  border-radius: var(--radius-xl);
-  border: 1px solid var(--border);
-  background: rgba(255,255,255,0.06);
-  box-shadow: var(--shadow-soft);
-  padding: 16px;
-  display: grid;
-  gap: 12px;
+  width: min(560px, 92vw);
+  border-radius: var(--buzz-radius-xl);
+  border: 1px solid var(--buzz-border);
+  background: rgba(255, 255, 255, 0.06);
+  box-shadow: var(--buzz-shadow);
+  padding: 18px 18px 16px 18px;
+
+  /* Create a stacking context so we can safely layer clickable controls above anything inside */
+  position: relative;
+  z-index: 1;
+  overflow: hidden;
 }
 
 .buzzTitle {
-  margin: 0;
-  font-size: 16px;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--muted);
+  margin: 0 0 10px 0;
+  font-size: 28px;
+  letter-spacing: -0.02em;
   font-weight: 950;
 }
 
+/* ===== Team selector (critical: must be clickable) ===== */
 .teamRow {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 10px;
+  gap: 12px;
+
+  margin: 10px 0 14px 0;
+
+  position: relative;
+  z-index: 10;          /* ABOVE anything else in card */
+  pointer-events: auto; /* ensure row is interactive */
 }
 
 .teamBtn {
-  border-radius: 16px;
-  border: 1px solid var(--border2);
-  background: rgba(255,255,255,0.08);
-  color: rgba(255,255,255,0.92);
+  pointer-events: auto; /* ensure buttons are interactive */
+  cursor: pointer;
+  user-select: none;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+
   padding: 14px 12px;
-  font-size: 16px;
+  border-radius: var(--buzz-radius-lg);
+  border: 1px solid var(--buzz-border);
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.92);
+
   font-weight: 950;
+  font-size: 16px;
+  letter-spacing: -0.01em;
+
+  transition: transform 120ms ease, background 140ms ease, border-color 140ms ease;
+}
+
+.teamBtn:active {
+  transform: scale(0.99);
 }
 
 .teamBtnActive {
-  border-color: rgba(255, 220, 110, 0.50);
-  background: rgba(255, 200, 0, 0.18);
+  border-color: rgba(255, 220, 110, 0.55);
+  background: rgba(255, 200, 0, 0.14);
+  box-shadow: 0 0 0 2px rgba(255, 200, 0, 0.12) inset;
 }
 
+/* ===== Big BUZZ button ===== */
 .bigBuzz {
-  border-radius: 26px;
-  border: 1px solid rgba(255, 220, 110, 0.55);
-  background: rgba(255, 200, 0, 0.18);
-  color: rgba(255,255,255,0.96);
-  padding: 18px;
-  font-size: 32px;
+  width: 100%;
+  margin-top: 6px;
+
+  border-radius: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: radial-gradient(circle at 50% 25%, rgba(255, 255, 255, 0.10), rgba(0, 0, 0, 0.20));
+  color: rgba(255, 255, 255, 0.95);
+
+  font-size: 30px;
   font-weight: 950;
-  letter-spacing: 0.04em;
-  height: 140px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+
+  padding: 18px 14px;
+
+  position: relative;
+  z-index: 2;
+  pointer-events: auto;
+
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
+  transition: transform 120ms ease, filter 140ms ease, opacity 140ms ease;
+}
+
+.bigBuzz:active {
+  transform: scale(0.99);
 }
 
 .bigBuzz:disabled {
-  opacity: 0.5;
+  opacity: 0.40;
+  filter: grayscale(0.5);
+  cursor: not-allowed;
 }
 
+/* ===== Status ===== */
 .status {
-  border-radius: 18px;
-  border: 1px solid rgba(255,255,255,0.14);
-  background: rgba(0,0,0,0.18);
-  padding: 12px;
+  margin-top: 14px;
+  padding: 12px 12px;
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(0, 0, 0, 0.18);
+  color: rgba(255, 255, 255, 0.88);
   font-size: 14px;
-  color: rgba(255,255,255,0.82);
   line-height: 1.35;
+}
+
+.statusMeta {
+  margin-top: 6px;
+  opacity: 0.85;
+}
+
+.hint {
+  margin-top: 10px;
+  color: var(--buzz-muted);
+  font-size: 13px;
 }

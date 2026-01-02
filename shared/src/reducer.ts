@@ -218,24 +218,62 @@ export function reducer(state: GameState, event: GameEvent): GameState {
     }
 
     case "REVEAL_ANSWER": {
+      if (!state.current) return state;
+      if (state.phase !== "PLAY") return state;
+
       const cur = state.current;
-      if (!cur || state.phase !== "PLAY") return { ...state, lastEventId: nextEventId };
+      const ansId = event.answerId;
 
-      if (cur.revealedAnswerIds[event.answerId]) return { ...state, lastEventId: nextEventId };
+      // already revealed? no-op
+      if (cur.revealedAnswerIds[ansId]) return state;
 
-      const answer = cur.answers.find(a => a.id === event.answerId);
-      if (!answer || !cur.activeTeam) return { ...state, lastEventId: nextEventId };
+      const revealedAnswerIds = {
+        ...cur.revealedAnswerIds,
+        [ansId]: true
+      };
+
+      // compute "all revealed"
+      let revealedCount = 0;
+      for (let i = 0; i < cur.answers.length; i++) {
+        const id = cur.answers[i].id;
+        if (revealedAnswerIds[id]) revealedCount++;
+      }
+      const allRevealed = revealedCount >= cur.answers.length;
+
+      const nextCurrent = {
+        ...cur,
+        revealedAnswerIds
+      };
+
+      // If all answers revealed, control team wins immediately
+      if (allRevealed) {
+        const controlTeam = cur.controlTeam;
+        if (!controlTeam) {
+          // defensive: if your model guarantees controlTeam, you can remove this
+          return { ...state, current: nextCurrent };
+        }
+
+        const nextTeams =
+          controlTeam === "A"
+            ? { ...state.teams, A: { ...state.teams.A, score: state.teams.A.score + cur.roundPoints } }
+            : { ...state.teams, B: { ...state.teams.B, score: state.teams.B.score + cur.roundPoints } };
+
+        return {
+          ...state,
+          teams: nextTeams,
+          current: nextCurrent,
+          phase: "ROUND_END",
+          // optional: close buzz so board doesn't show buzz UI during round end
+          buzz: state.buzz ? { ...state.buzz, open: false } : state.buzz
+        };
+      }
 
       return {
         ...state,
-        lastEventId: nextEventId,
-        current: {
-          ...cur,
-          revealedAnswerIds: { ...cur.revealedAnswerIds, [event.answerId]: true },
-          roundPoints: cur.roundPoints + answer.points
-        }
+        current: nextCurrent
       };
     }
+
 
     case "ADD_STRIKE": {
       const cur = state.current;

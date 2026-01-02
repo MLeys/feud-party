@@ -11,9 +11,13 @@ export type GameEvent =
   | { type: "NEXT_ROUND" }
   | { type: "END_GAME" }
 
+  // ===== Game Admin (host) =====
+  | { type: "RESET_TO_SETUP" }     // clears game progress and scores; returns to SETUP
+  | { type: "RESTART_ROUND" }      // restarts current round (same prompt), keeps overall scores
+
   // ===== Buzz system (host + server) =====
-  | { type: "OPEN_BUZZ"; mode: "FACE_OFF" | "PLAY" }            // host
-  | { type: "RESET_BUZZ" }                                      // host
-  | { type: "OVERRIDE_BUZZ"; team: TeamId }                     // host
-  | { type: "APPLY_BUZZ" }                                      // host
-  | { type: "BUZZ_LOCK"; team: TeamId; socketId: string };      // server (first buzz wins)
+  | { type: "OPEN_BUZZ"; mode: "FACE_OFF" | "PLAY" }
+  | { type: "RESET_BUZZ" }
+  | { type: "OVERRIDE_BUZZ"; team: TeamId }
+  | { type: "APPLY_BUZZ" }
+  | { type: "BUZZ_LOCK"; team: TeamId; socketId: string };

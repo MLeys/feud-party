@@ -50,6 +50,38 @@ export function reducer(state: GameState, event: GameEvent): GameState {
   const nextEventId = state.lastEventId + 1;
 
   switch (event.type) {
+    case "RESET_TO_SETUP": {
+      // Best practice: keep team names + packId, but clear scores and progress.
+      return {
+        ...state,
+        lastEventId: nextEventId,
+        phase: "SETUP",
+        teams: {
+          A: { ...state.teams.A, score: 0 },
+          B: { ...state.teams.B, score: 0 }
+        },
+        current: null,
+        buzz: makeEmptyBuzz()
+      };
+    }
+
+    case "RESTART_ROUND": {
+      // Restart the current round content, keep overall game scores and round index.
+      const cur = state.current;
+      if (!cur) return { ...state, lastEventId: nextEventId };
+
+      const round = state.rounds[cur.roundIndex];
+      if (!round) return { ...state, lastEventId: nextEventId };
+
+      return {
+        ...state,
+        lastEventId: nextEventId,
+        phase: "FACE_OFF",
+        current: makeRoundState(round, cur.roundIndex),
+        buzz: makeEmptyBuzz()
+      };
+    }
+
     case "SETUP_GAME": {
       const firstRound = state.rounds[0];
       return {
@@ -79,7 +111,6 @@ export function reducer(state: GameState, event: GameEvent): GameState {
     }
 
     case "OPEN_BUZZ": {
-      // Host opens the window; wipe any previous winner to avoid confusion.
       return {
         ...state,
         lastEventId: nextEventId,
@@ -102,7 +133,6 @@ export function reducer(state: GameState, event: GameEvent): GameState {
     }
 
     case "BUZZ_LOCK": {
-      // Server locks the first buzz only if currently open and no winner yet.
       if (!state.buzz.open) return { ...state, lastEventId: nextEventId };
       if (state.buzz.winnerTeam) return { ...state, lastEventId: nextEventId };
 
@@ -119,7 +149,6 @@ export function reducer(state: GameState, event: GameEvent): GameState {
     }
 
     case "OVERRIDE_BUZZ": {
-      // Host forces a winner; also closes any open buzz window.
       return {
         ...state,
         lastEventId: nextEventId,
@@ -127,7 +156,6 @@ export function reducer(state: GameState, event: GameEvent): GameState {
           ...state.buzz,
           open: false,
           winnerTeam: event.team
-          // keep winnerSocketId as-is (may be null) so "you won" is only for natural winners
         }
       };
     }
@@ -139,10 +167,8 @@ export function reducer(state: GameState, event: GameEvent): GameState {
       if (!win) return { ...state, lastEventId: nextEventId };
       if (!cur) return { ...state, lastEventId: nextEventId };
 
-      // Applying consumes the buzzer state so the TV overlay doesn't stick.
       const clearedBuzz = makeEmptyBuzz();
 
-      // Face-off application: set control + active and transition to PLAY.
       if (state.phase === "FACE_OFF") {
         return {
           ...state,
@@ -159,7 +185,6 @@ export function reducer(state: GameState, event: GameEvent): GameState {
         };
       }
 
-      // Play application: set activeTeam only (controlTeam stays the same).
       if (state.phase === "PLAY") {
         return {
           ...state,
@@ -172,7 +197,6 @@ export function reducer(state: GameState, event: GameEvent): GameState {
         };
       }
 
-      // Otherwise ignore (but still consume to avoid sticky UI, by design).
       return { ...state, lastEventId: nextEventId, buzz: clearedBuzz };
     }
 
@@ -221,7 +245,6 @@ export function reducer(state: GameState, event: GameEvent): GameState {
       const strikes = cur.strikes + 1;
       const reachedMax = strikes >= cur.maxStrikes;
 
-      // In PLAY, max strikes transitions to STEAL automatically.
       if (state.phase === "PLAY" && reachedMax && cur.controlTeam) {
         return {
           ...state,
@@ -260,7 +283,6 @@ export function reducer(state: GameState, event: GameEvent): GameState {
       const stealTeam = cur.activeTeam;
       const winner: TeamId = event.success ? stealTeam : cur.controlTeam;
 
-      // Optionally reveal the stolen answer and add its points (nice for showmanship).
       let updatedCur = cur;
       if (event.success && event.stolenAnswerId && !cur.revealedAnswerIds[event.stolenAnswerId]) {
         const ans = cur.answers.find(a => a.id === event.stolenAnswerId);

@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+// feud-party/client/src/board/FitText.tsx
+import { useEffect, useRef, useState } from "react";
 
 type FitTextProps = {
   text: string;
@@ -7,7 +8,7 @@ type FitTextProps = {
   className?: string;
   style?: React.CSSProperties;
   lineHeight?: number; // multiplier, e.g. 1.05
-  maxLines?: number;   // default 2
+  maxLines?: number; // default 2
   fontWeight?: number;
 };
 
@@ -29,15 +30,6 @@ export default function FitText({
   const measRef = useRef<HTMLDivElement | null>(null);
 
   const [fontPx, setFontPx] = useState(maxPx);
-
-  const depsKey = useMemo(() => `${text}::${maxPx}::${minPx}::${lineHeight}::${maxLines}::${fontWeight}`, [
-    text,
-    maxPx,
-    minPx,
-    lineHeight,
-    maxLines,
-    fontWeight
-  ]);
 
   useEffect(() => {
     const host = hostRef.current;
@@ -61,9 +53,6 @@ export default function FitText({
       meas.style.visibility = "hidden";
       meas.style.pointerEvents = "none";
 
-      // Height budget = maxLines * lineHeight * fontSize, but we also must fit inside host height.
-      // We test with binary search.
-
       let lo = minPx;
       let hi = maxPx;
       let best = minPx;
@@ -79,8 +68,6 @@ export default function FitText({
         const maxAllowedHeight = Math.min(height, maxLines * mid * lineHeight + 0.5);
         const fitsHeight = scrollH <= maxAllowedHeight + 0.5;
 
-        // Also ensure no horizontal overflow due to long words; break-word should handle most cases.
-        // We treat height fit as the key constraint.
         if (fitsHeight) {
           best = mid;
           lo = mid;
@@ -104,7 +91,7 @@ export default function FitText({
       cancelAnimationFrame(raf);
       ro.disconnect();
     };
-  }, [depsKey]);
+  }, [text, maxPx, minPx, lineHeight, maxLines, fontWeight]);
 
   return (
     <div ref={hostRef} className={className} style={{ ...style, position: "relative", overflow: "hidden" }}>

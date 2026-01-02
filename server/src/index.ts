@@ -1,3 +1,4 @@
+// feud-party/server/src/index.ts
 import express from "express";
 import http from "http";
 import path from "path";
@@ -34,12 +35,18 @@ function broadcastState() {
 }
 
 io.on("connection", (socket) => {
+  // NOTE: client pages may not have listeners attached yet.
+  // We still emit immediately (fine), but we ALSO support "state:request".
   socket.emit("state:sync", state);
+
+  socket.on("state:request", () => {
+    socket.emit("state:sync", state);
+  });
 
   socket.on("host:auth", (payload: { pin: string }, cb?: (res: { ok: boolean }) => void) => {
     const ok = Boolean(payload && payload.pin === hostPin);
     (socket.data as SocketData).isHost = ok;
-    cb && cb({ ok });
+    if (cb) cb({ ok });
   });
 
   // ===== Phone buzzer (no host auth required) =====
@@ -47,7 +54,6 @@ io.on("connection", (socket) => {
     const team = payload && payload.team ? payload.team : null;
     if (team !== "A" && team !== "B") return;
 
-    // First buzz wins (server-authoritative)
     if (!state.buzz.open || state.buzz.winnerTeam) return;
 
     state = reducer(state, { type: "BUZZ_LOCK", team, socketId: socket.id });
@@ -57,16 +63,16 @@ io.on("connection", (socket) => {
   socket.on("game:event", (event: GameEvent, cb?: (res: { ok: boolean; error?: string }) => void) => {
     const isHost = Boolean((socket.data as SocketData).isHost);
     if (!isHost) {
-      cb && cb({ ok: false, error: "Not authorized" });
+      if (cb) cb({ ok: false, error: "Not authorized" });
       return;
     }
 
     try {
       state = reducer(state, event);
       broadcastState();
-      cb && cb({ ok: true });
+      if (cb) cb({ ok: true });
     } catch {
-      cb && cb({ ok: false, error: "Reducer error" });
+      if (cb) cb({ ok: false, error: "Reducer error" });
     }
   });
 });

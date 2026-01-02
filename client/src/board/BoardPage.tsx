@@ -19,6 +19,8 @@ export default function BoardPage() {
     };
 
     socket.on("state:sync", onSync);
+    socket.emit("state:request");
+
     return () => {
       socket.off("state:sync", onSync);
     };

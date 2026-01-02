@@ -28,6 +28,10 @@ export type GameEvent = {
 } | {
     type: "END_GAME";
 } | {
+    type: "RESET_TO_SETUP";
+} | {
+    type: "RESTART_ROUND";
+} | {
     type: "OPEN_BUZZ";
     mode: "FACE_OFF" | "PLAY";
 } | {

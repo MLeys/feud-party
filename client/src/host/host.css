@@ -1,116 +1,210 @@
-@import "../board/board.css";
-
 .hostRoot {
   min-height: 100vh;
-  color: var(--text);
-  font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji",
-    "Segoe UI Emoji";
-  background:
-    radial-gradient(1100px 650px at 50% -10%, rgba(120, 65, 255, 0.26), transparent 62%),
-    radial-gradient(900px 550px at 15% 10%, rgba(0, 160, 255, 0.16), transparent 60%),
-    radial-gradient(900px 550px at 85% 12%, rgba(255, 170, 0, 0.10), transparent 60%),
-    linear-gradient(180deg, var(--bg1) 0%, var(--bg0) 60%);
-  overflow-x: hidden;
+  background: radial-gradient(900px 520px at 20% 0%, rgba(0, 160, 255, 0.18), transparent 60%),
+              radial-gradient(900px 520px at 80% 0%, rgba(255, 200, 0, 0.14), transparent 60%),
+              linear-gradient(180deg, #0b0b16 0%, #05050a 60%);
+  color: rgba(255,255,255,0.92);
+  font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
 }
 
-.hostStage {
-  width: min(980px, calc(100vw - 24px));
+.hostShellWide {
+  width: min(1240px, calc(100vw - 28px));
   margin: 0 auto;
-  padding: 18px 0 24px 0;
-  display: grid;
-  gap: 14px;
-  box-sizing: border-box;
+  padding: 16px 0 44px 0;
 }
 
-.hostTopBar {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
+.hostH1 {
+  font-size: 28px;
+  font-weight: 950;
+  letter-spacing: -0.02em;
+}
+
+.hostMuted {
+  color: rgba(255,255,255,0.72);
+  margin-top: 6px;
+  font-size: 14px;
+}
+
+.hostTopTitle {
+  margin: 14px 0 14px 0;
+}
+
+.hostError {
+  margin: 12px 0 14px 0;
+  border: 1px solid rgba(255, 90, 90, 0.30);
+  background: rgba(255, 70, 70, 0.12);
+  padding: 10px 12px;
+  border-radius: 14px;
+  font-weight: 800;
+}
+
+.statusStrip {
+  position: sticky;
+  top: 10px;
+  z-index: 50;
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr)) auto;
   gap: 10px;
+  padding: 10px;
+  border-radius: 18px;
+  border: 1px solid rgba(255,255,255,0.16);
+  background: rgba(0,0,0,0.34);
+  backdrop-filter: blur(12px);
+  box-shadow: 0 18px 60px rgba(0,0,0,0.35);
 }
 
-.hostTitle {
-  display: grid;
-  gap: 2px;
+@media (max-width: 980px) {
+  .statusStrip {
+    grid-template-columns: 1fr 1fr;
+    top: 8px;
+  }
 }
 
-.hostTitle h1 {
-  margin: 0;
-  font-size: 18px;
-  letter-spacing: 0.12em;
+.hpill {
+  border: 1px solid rgba(255,255,255,0.14);
+  background: rgba(255,255,255,0.06);
+  border-radius: 16px;
+  padding: 9px 10px;
+  min-width: 0;
+}
+
+.hpillLabel {
+  font-size: 11px;
+  letter-spacing: 0.14em;
   text-transform: uppercase;
-  color: var(--muted);
+  color: rgba(255,255,255,0.66);
   font-weight: 900;
 }
 
-.hostTitle div {
-  font-size: 13px;
-  color: rgba(255,255,255,0.72);
+.hpillValue {
+  margin-top: 6px;
+  font-size: 16px;
+  font-weight: 950;
+  letter-spacing: -0.02em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.hostChip {
-  border: 1px solid var(--border);
-  background: rgba(255,255,255,0.06);
-  padding: 8px 10px;
-  border-radius: 999px;
-  font-weight: 850;
-  font-size: 13px;
-  color: rgba(255,255,255,0.90);
+.hpill-neutral {}
+
+.hpill-info {
+  border-color: rgba(0, 160, 255, 0.28);
+  background: rgba(0, 160, 255, 0.10);
+}
+
+.hpill-play {
+  border-color: rgba(255, 220, 110, 0.35);
+  background: rgba(255, 200, 0, 0.10);
+}
+
+.hpill-danger {
+  border-color: rgba(255, 90, 90, 0.28);
+  background: rgba(255, 70, 70, 0.10);
+}
+
+.pinPill {
+  border: 1px solid rgba(255,255,255,0.18);
+  background: rgba(255,255,255,0.09);
+  border-radius: 16px;
+  padding: 9px 12px;
+  display: grid;
+  align-content: center;
+  justify-items: center;
+}
+
+.pinLabel {
+  font-size: 11px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: rgba(255,255,255,0.70);
+  font-weight: 900;
+}
+
+.pinValue {
+  margin-top: 5px;
+  font-size: 18px;
+  font-weight: 950;
+  letter-spacing: 0.18em;
+}
+
+.hostGrid {
+  display: grid;
+  grid-template-columns: 1.15fr 0.85fr;
+  gap: 14px;
+  margin-top: 14px;
+}
+
+@media (max-width: 980px) {
+  .hostGrid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.col {
+  display: grid;
+  gap: 14px;
+  align-content: start;
 }
 
 .card {
-  border-radius: var(--radius-xl);
-  border: 1px solid var(--border);
+  border: 1px solid rgba(255,255,255,0.16);
   background: rgba(255,255,255,0.06);
-  box-shadow: var(--shadow-soft);
+  border-radius: 18px;
   padding: 14px;
+  box-shadow: 0 18px 60px rgba(0,0,0,0.28);
+}
+
+.cardPrimary {
+  border-color: rgba(255, 220, 110, 0.30);
+  background: linear-gradient(180deg, rgba(255, 200, 0, 0.14), rgba(255,255,255,0.06));
+  box-shadow: 0 20px 70px rgba(0,0,0,0.42);
+  margin-top: 14px;
 }
 
 .cardHeader {
-  display: grid;
-  gap: 6px;
-  margin-bottom: 12px;
+  margin-bottom: 10px;
 }
 
 .cardHeaderTitle {
-  font-size: 16px;
   font-weight: 950;
   letter-spacing: -0.01em;
+  font-size: 16px;
 }
 
 .cardHeaderSub {
+  margin-top: 4px;
   font-size: 13px;
-  color: var(--muted);
-  line-height: 1.3;
+  color: rgba(255,255,255,0.70);
 }
 
-.nowBanner {
-  border-radius: 18px;
-  border: 1px solid rgba(255, 220, 110, 0.40);
-  background: rgba(255, 200, 0, 0.12);
-  padding: 12px;
-  display: grid;
-  gap: 6px;
+.nextActionTitle {
+  font-size: 22px;
+  font-weight: 950;
+  letter-spacing: -0.02em;
+  margin-top: 6px;
 }
 
-.nowTitle {
+.nextActionRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.label {
   font-size: 12px;
-  letter-spacing: 0.16em;
+  letter-spacing: 0.14em;
   text-transform: uppercase;
-  color: rgba(255,255,255,0.82);
+  color: rgba(255,255,255,0.70);
+  margin-bottom: 6px;
   font-weight: 900;
 }
 
-.nowAction {
-  font-size: 18px;
-  font-weight: 950;
-  letter-spacing: -0.01em;
-}
-
-.nowHint {
+.hintSmall {
+  margin-top: 10px;
   font-size: 13px;
-  color: rgba(255,255,255,0.76);
-  line-height: 1.35;
+  color: rgba(255,255,255,0.68);
 }
 
 .row {
@@ -124,157 +218,131 @@
   gap: 10px;
 }
 
+@media (max-width: 640px) {
+  .row2 {
+    grid-template-columns: 1fr;
+  }
+}
+
 .input {
   width: 100%;
-  box-sizing: border-box;
+  border: 1px solid rgba(255,255,255,0.16);
+  background: rgba(0,0,0,0.22);
   border-radius: 14px;
-  border: 1px solid var(--border);
-  background: rgba(0,0,0,0.18);
+  padding: 11px 12px;
   color: rgba(255,255,255,0.92);
-  padding: 12px 12px;
   font-size: 16px;
-  font-weight: 800;
   outline: none;
 }
 
-.input::placeholder {
-  color: rgba(255,255,255,0.45);
-  font-weight: 700;
+.input:disabled {
+  opacity: 0.65;
+}
+
+.range {
+  width: 100%;
+}
+
+.btnRow {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
 }
 
 .btn {
-  border-radius: 16px;
-  border: 1px solid var(--border2);
-  background: rgba(255,255,255,0.08);
+  border: 1px solid rgba(255,255,255,0.16);
+  background: rgba(255,255,255,0.06);
   color: rgba(255,255,255,0.92);
-  padding: 14px 12px;
-  font-size: 16px;
+  border-radius: 14px;
+  padding: 10px 12px;
   font-weight: 950;
-  letter-spacing: -0.01em;
+  cursor: pointer;
 }
 
 .btn:disabled {
   opacity: 0.45;
+  cursor: not-allowed;
 }
 
 .btnPrimary {
-  border-color: rgba(255, 220, 110, 0.50);
-  background: rgba(255, 200, 0, 0.18);
-}
-
-.btnDanger {
-  border-color: rgba(255, 90, 90, 0.45);
-  background: rgba(255, 70, 70, 0.16);
+  border-color: rgba(255, 220, 110, 0.45);
+  background: rgba(255, 200, 0, 0.16);
 }
 
 .btnGhost {
-  border-color: rgba(255,255,255,0.14);
-  background: rgba(255,255,255,0.04);
+  border-color: rgba(255,255,255,0.18);
+  background: rgba(0,0,0,0.18);
 }
 
-.small {
-  font-size: 12px;
-  color: var(--muted);
+.btnDanger {
+  border-color: rgba(255, 90, 90, 0.40);
+  background: rgba(255, 70, 70, 0.12);
 }
 
-.kpiRow {
+.segRow {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.seg {
+  border: 1px solid rgba(255,255,255,0.16);
+  background: rgba(0,0,0,0.18);
+  color: rgba(255,255,255,0.90);
+  border-radius: 999px;
+  padding: 9px 12px;
+  font-weight: 950;
+  cursor: pointer;
+}
+
+.seg:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.segActive {
+  border-color: rgba(255, 220, 110, 0.45);
+  background: rgba(255, 200, 0, 0.16);
+}
+
+.revealGrid {
   display: grid;
-  grid-template-columns: 1fr auto 1fr;
+  gap: 10px;
+}
+
+.btnReveal {
+  display: grid;
+  grid-template-columns: 1fr auto;
   gap: 10px;
   align-items: center;
+  text-align: left;
 }
 
-.kpi {
-  border-radius: 16px;
-  border: 1px solid var(--border);
-  background: rgba(0,0,0,0.16);
-  padding: 10px 12px;
-  display: grid;
-  gap: 2px;
+.btnRevealOn {
+  border-color: rgba(255, 220, 110, 0.45);
+  background: rgba(255, 200, 0, 0.14);
 }
 
-.kpiLabel {
-  font-size: 11px;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-  color: rgba(255,255,255,0.70);
-  font-weight: 900;
-}
-
-.kpiValue {
-  font-size: 18px;
+.revealText {
   font-weight: 950;
-}
-
-.sep {
-  height: 1px;
-  background: rgba(255,255,255,0.12);
-  margin: 8px 0;
-}
-
-/* ===== Responsive Host layout ===== */
-
-.hostGrid {
-  display: grid;
-  gap: 14px;
-}
-
-@media (min-width: 980px) {
-  .hostGrid {
-    grid-template-columns: 1.2fr 0.8fr;
-    align-items: start;
-  }
-}
-
-.sideCard {
-  position: sticky;
-  top: 14px;
-}
-
-.activeBanner {
-  border-radius: 20px;
-  border: 1px solid rgba(255,255,255,0.16);
-  background: rgba(255,255,255,0.06);
-  box-shadow: var(--shadow-soft);
-  padding: 12px 14px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.activeBannerTitle {
-  font-size: 12px;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-  color: rgba(255,255,255,0.72);
-  font-weight: 900;
-}
-
-.activeBannerTeam {
-  font-size: 22px;
-  font-weight: 950;
-  letter-spacing: -0.01em;
-}
-
-.activeBadge {
-  border-radius: 999px;
-  padding: 8px 10px;
-  border: 1px solid rgba(255, 220, 110, 0.40);
-  background: rgba(255, 200, 0, 0.12);
-  font-weight: 950;
-  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.actionRow {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px;
+.revealPts {
+  font-weight: 950;
+  opacity: 0.9;
 }
 
-@media (min-width: 980px) {
-  .actionRow {
-    grid-template-columns: 1fr;
-  }
+.hostFooterNote {
+  margin-top: 6px;
+  color: rgba(255,255,255,0.65);
+  font-size: 13px;
+}
+
+code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size: 12px;
+  color: rgba(255,255,255,0.85);
 }

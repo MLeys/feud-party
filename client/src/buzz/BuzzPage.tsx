@@ -19,6 +19,8 @@ export default function BuzzPage() {
   useEffect(() => {
     const onSync = (s: GameState) => setState(s);
     socket.on("state:sync", onSync);
+    socket.emit("state:request");
+
     return () => {
       socket.off("state:sync", onSync);
     };
@@ -27,8 +29,10 @@ export default function BuzzPage() {
   const buzz = state ? state.buzz : null;
   const mySocketId = socket.id || null;
 
+  const teamAName = state ? state.teams.A.name : "Team A";
+  const teamBName = state ? state.teams.B.name : "Team B";
+
   const isOpen = Boolean(buzz && buzz.open);
-  const hasWinner = Boolean(buzz && buzz.winnerTeam);
   const winnerTeam = buzz && buzz.winnerTeam ? buzz.winnerTeam : null;
 
   const iWon = Boolean(
@@ -66,13 +70,13 @@ export default function BuzzPage() {
             className={team === "A" ? "teamBtn teamBtnActive" : "teamBtn"}
             onClick={() => setTeam("A")}
           >
-            Team A
+            {teamAName}
           </button>
           <button
             className={team === "B" ? "teamBtn teamBtnActive" : "teamBtn"}
             onClick={() => setTeam("B")}
           >
-            Team B
+            {teamBName}
           </button>
         </div>
 
@@ -95,9 +99,10 @@ export default function BuzzPage() {
           {state ? (
             <div style={{ marginTop: 6, opacity: 0.85 }}>
               Winner:{" "}
-              {winnerTeam ? <strong>Team {winnerTeam}</strong> : "—"} {" · "}
+              {winnerTeam ? <strong>{winnerTeam === "A" ? teamAName : teamBName}</strong> : "—"}
+              {" · "}
               Open: {isOpen ? <strong>Yes</strong> : <strong>No</strong>}
-              {hasWinner && iWon ? (
+              {winnerTeam && iWon ? (
                 <>
                   {" · "}
                   <strong>You won</strong>

@@ -1,543 +1,766 @@
+// feud-party/client/src/host/HostStage.tsx
 import { useMemo, useState } from "react";
-import type { GameEvent, GameState } from "@feud/shared";
-import RevealPad from "./RevealPad";
-import "./host.css";
+import type { BuzzState, GameEvent, GameState, TeamId } from "@feud/shared";
 
-function phaseNow(state: GameState) {
-  const cur = state.current;
-  const strikes = cur ? cur.strikes : 0;
-  const maxStrikes = cur ? cur.maxStrikes : 3;
+type Props = {
+  state: GameState;
+  send: (e: GameEvent) => void;
+  clearError: () => void;
+  hostError?: string;
+};
 
-  if (state.phase === "SETUP") {
-    return {
-      action: "Start the game (set teams and rounds).",
-      hint: "Pick team names, choose 3 or 5 rounds, then press Start."
-    };
+type Phase = GameState["phase"];
+
+function phaseLabel(phase: Phase): string {
+  switch (phase) {
+    case "SETUP":
+      return "Setup";
+    case "FACE_OFF":
+      return "Face-off";
+    case "PLAY":
+      return "Play";
+    case "STEAL":
+      return "Steal";
+    case "ROUND_END":
+      return "Round End";
+    case "GAME_END":
+      return "Game End";
+    default:
+      return String(phase);
   }
-
-  if (state.phase === "FACE_OFF") {
-    return {
-      action: "Open buzzers or choose the face-off winner.",
-      hint: "Best practice: Open Buzz (Face-off). First buzz locks. Then Apply winner."
-    };
-  }
-
-  if (state.phase === "PLAY") {
-    if (strikes >= maxStrikes) {
-      return {
-        action: "Steal time.",
-        hint: "Press Start Steal. The other team gets one guess."
-      };
-    }
-    return {
-      action: "Reveal correct answers, add strikes, and optionally open buzz (Play).",
-      hint: "Use Open Buzz (Play) when you want teams to fight for control mid-round."
-    };
-  }
-
-  if (state.phase === "STEAL") {
-    return {
-      action: "Resolve the steal.",
-      hint: "If they guessed a remaining answer, tap it below (auto reveals + awards). Otherwise tap Steal Failed."
-    };
-  }
-
-  if (state.phase === "ROUND_END") {
-    return {
-      action: "Advance to the next round.",
-      hint: "Tap Next Round when you’re ready."
-    };
-  }
-
-  if (state.phase === "GAME_END") {
-    return {
-      action: "Game over.",
-      hint: "End Game resets back to Setup."
-    };
-  }
-
-  return { action: "Waiting…", hint: "" };
 }
 
-export default function HostStage({
-  state,
-  authed,
-  onAuth,
-  send
-}: {
-  state: GameState;
-  authed: boolean;
-  onAuth: (pin: string) => void;
-  send: (e: GameEvent) => void;
-}) {
-  const cur = state.current;
+function phaseTone(phase: Phase): string {
+  // CSS hooks: neutral | info | play | danger
+  switch (phase) {
+    case "FACE_OFF":
+      return "info";
+    case "PLAY":
+      return "play";
+    case "STEAL":
+      return "danger";
+    default:
+      return "neutral";
+  }
+}
 
-  const [pin, setPin] = useState("");
-  const [teamAName, setTeamAName] = useState("Team A");
-  const [teamBName, setTeamBName] = useState("Team B");
-  const [confirmEnd, setConfirmEnd] = useState(false);
+function teamName(state: GameState, t: TeamId): string {
+  return t === "A" ? state.teams.A.name : state.teams.B.name;
+}
 
-  // Sync names only in SETUP
-  useMemo(() => {
-    if (state.phase === "SETUP") {
-      setTeamAName(state.teams.A.name || "Team A");
-      setTeamBName(state.teams.B.name || "Team B");
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state.phase]);
+function strikesText(cur: GameState["current"]): string {
+  if (!cur) return "—";
+  const s = cur.strikes;
+  const m = cur.maxStrikes;
+  const parts: string[] = [];
+  for (let i = 1; i <= m; i++) parts.push(i <= s ? "X" : "•");
+  return parts.join(" ");
+}
 
-  const now = phaseNow(state);
+// Strict gating: what is allowed in each phase
+function allowed(state: GameState) {
+  const phase = state.phase;
+  const hasRound = Boolean(state.current);
 
-  const controlTeam =
-    cur && cur.controlTeam ? state.teams[cur.controlTeam].name : "—";
-  const activeTeam =
-    cur && cur.activeTeam ? state.teams[cur.activeTeam].name : "—";
-  const bank = cur ? cur.roundPoints : 0;
-  const strikes = cur ? cur.strikes : 0;
-  const maxStrikes = cur ? cur.maxStrikes : 3;
+  const allowSetupStart = phase === "SETUP";
+  const allowFaceoff = phase === "FACE_OFF";
+  const allowPlay = phase === "PLAY";
+  const allowSteal = phase === "STEAL";
+  const allowRoundEnd = phase === "ROUND_END";
 
-  const canReveal = authed && (state.phase === "PLAY" || state.phase === "STEAL");
-  const canStrike = authed && state.phase === "PLAY" && strikes < maxStrikes;
-  const canStartSteal = authed && state.phase === "PLAY" && strikes >= maxStrikes;
-  const canFaceOff = authed && state.phase === "FACE_OFF";
-  const canNextRound = authed && state.phase === "ROUND_END";
-  const canEndGame =
-    authed &&
-    (state.phase === "GAME_END" ||
-      state.phase === "ROUND_END" ||
-      state.phase === "SETUP");
+  return {
+    // Setup
+    startGame: allowSetupStart,
 
-  const unrevealed = useMemo(() => {
-    if (!cur) return [];
-    const out = [];
-    for (let i = 0; i < cur.answers.length; i++) {
-      const a = cur.answers[i];
-      const isRev = cur.revealedAnswerIds && cur.revealedAnswerIds[a.id];
-      if (!isRev) out.push(a);
-    }
-    return out;
-  }, [cur]);
+    // Face-off
+    openBuzzFaceoff: allowFaceoff,
+    manualPickFaceoff: allowFaceoff,
+    applyBuzz: allowFaceoff && Boolean(state.buzz.winnerTeam),
+    resetBuzz: allowFaceoff,
 
-  if (!authed) {
+    // Play
+    reveal: allowPlay && hasRound,
+    strike: (allowPlay || allowSteal) && hasRound, // strikes can be used in STEAL only if you want
+    startSteal: allowPlay && hasRound,
+    openBuzzPlay: allowPlay, // optional
+
+    // Steal
+    stealResult: allowSteal && hasRound,
+
+    // Round end / game end
+    nextRound: allowRoundEnd && hasRound,
+
+    // Audio is always safe
+    audio: true,
+
+    // Admin menu
+    restartRound: hasRound,
+    resetToSetup: true,
+    endGame: true
+  };
+}
+
+function disabledReason(state: GameState, key: keyof ReturnType<typeof allowed>): string {
+  const a = allowed(state);
+
+  switch (key) {
+    case "startGame":
+      return a.startGame ? "" : "Available during Setup only.";
+
+    case "openBuzzFaceoff":
+    case "manualPickFaceoff":
+    case "applyBuzz":
+    case "resetBuzz":
+      return a.openBuzzFaceoff ? "" : "Available during Face-off only.";
+
+    case "reveal":
+      return a.reveal ? "" : "Answers can be revealed during Play only.";
+
+    case "strike":
+      return a.strike ? "" : "Strikes are used during Play (and optionally Steal) only.";
+
+    case "startSteal":
+      return a.startSteal ? "" : "Steal can start only after Play begins.";
+
+    case "openBuzzPlay":
+      return a.openBuzzPlay ? "" : "Play buzz is available during Play only.";
+
+    case "stealResult":
+      return a.stealResult ? "" : "Record steal outcome during Steal phase only.";
+
+    case "nextRound":
+      return a.nextRound ? "" : "Next round is available after the round ends.";
+
+    case "audio":
+      return "";
+
+    case "restartRound":
+      return a.restartRound ? "" : "No round loaded yet.";
+
+    case "resetToSetup":
+      return "";
+
+    case "endGame":
+      return "";
+
+    default:
+      return "";
+  }
+}
+
+function StatusPill(props: { label: string; value: string; tone?: string }) {
+  const tone = props.tone || "neutral";
+  return (
+    <div className={`hpill hpill-${tone}`}>
+      <div className="hpillLabel">{props.label}</div>
+      <div className="hpillValue">{props.value}</div>
+    </div>
+  );
+}
+
+/**
+ * SetupCard: owns local form state. No syncing effects. Re-mount using key when returning to SETUP.
+ */
+function SetupCard(props: { state: GameState; send: (e: GameEvent) => void; clearError: () => void }) {
+  const { state, send, clearError } = props;
+
+  const [teamA, setTeamA] = useState(state.teams.A.name || "Team A");
+  const [teamB, setTeamB] = useState(state.teams.B.name || "Team B");
+  const [len, setLen] = useState<3 | 5>(state.config.gameLength);
+
+  const a = allowed(state);
+
+  function startGame(gameLength: 3 | 5) {
+    clearError();
+    send({
+      type: "SETUP_GAME",
+      teamAName: teamA || "Team A",
+      teamBName: teamB || "Team B",
+      gameLength,
+      packId: state.packId
+    });
+  }
+
+  const dis = !a.startGame;
+  const reason = disabledReason(state, "startGame");
+
+  return (
+    <div className="card">
+      <div className="cardHeader">
+        <div className="cardHeaderTitle">Setup</div>
+        <div className="cardHeaderSub">Set team names and start the game.</div>
+      </div>
+
+      <div className="row2">
+        <div>
+          <div className="label">Team A</div>
+          <input className="input" value={teamA} onChange={(e) => setTeamA(e.target.value)} disabled={dis} />
+        </div>
+        <div>
+          <div className="label">Team B</div>
+          <input className="input" value={teamB} onChange={(e) => setTeamB(e.target.value)} disabled={dis} />
+        </div>
+      </div>
+
+      <div className="row">
+        <div className="label">Game Length</div>
+        <div className="segRow">
+          <button className={len === 3 ? "seg segActive" : "seg"} onClick={() => setLen(3)} disabled={dis}>
+            3 Rounds
+          </button>
+          <button className={len === 5 ? "seg segActive" : "seg"} onClick={() => setLen(5)} disabled={dis}>
+            5 Rounds
+          </button>
+        </div>
+
+        <div className="btnRow">
+          <button className="btn btnPrimary" onClick={() => startGame(3)} disabled={dis} title={reason}>
+            Start (3)
+          </button>
+          <button className="btn btnPrimary" onClick={() => startGame(5)} disabled={dis} title={reason}>
+            Start (5)
+          </button>
+        </div>
+
+        {!a.startGame ? <div className="hintSmall">Setup is locked once the game begins.</div> : null}
+      </div>
+    </div>
+  );
+}
+
+function NextActionCard(props: { state: GameState; send: (e: GameEvent) => void }) {
+  const { state, send } = props;
+  const a = allowed(state);
+  const phase = state.phase;
+
+  if (phase === "SETUP") {
+    // IMPORTANT: Only SetupCard starts the game because it owns the form state.
+    // This prevents stale team names being sent from state.teams.* (which may not reflect current inputs).
     return (
-      <div className="hostRoot">
-        <div className="hostStage">
-          <div className="hostTopBar">
-            <div className="hostTitle">
-              <h1>Host Console</h1>
-              <div>Enter the PIN shown on the TV Board</div>
-            </div>
-            <div className="hostChip">Not Connected</div>
-          </div>
+      <div className="card cardPrimary">
+        <div className="cardHeader">
+          <div className="cardHeaderTitle">Next Action</div>
+          <div className="cardHeaderSub">Set team names, then start the game.</div>
+        </div>
 
-          <div className="card">
-            <div className="cardHeader">
-              <div className="cardHeaderTitle">Connect</div>
-              <div className="cardHeaderSub">
-                On the TV, look for <strong>Host PIN</strong>. Enter it here.
-              </div>
-            </div>
+        <div className="nextActionTitle">Start the game</div>
 
-            <div className="row2">
-              <input
-                className="input"
-                value={pin}
-                onChange={(e) => setPin(e.target.value)}
-                inputMode="numeric"
-                placeholder="PIN"
-              />
-              <button className="btn btnPrimary" onClick={() => onAuth(pin)}>
-                Connect
-              </button>
-            </div>
-
-            <div className="small" style={{ marginTop: 10 }}>
-              Tip: your device must be on the same Wi-Fi as the laptop running the server.
-            </div>
-          </div>
+        <div className="hintSmall">
+          Use the <b>Setup</b> panel to edit team names and press Start (3) or Start (5).
         </div>
       </div>
     );
   }
 
-  const buzzStatus = state.buzz
-    ? state.buzz.open
-      ? "OPEN (" + (state.buzz.mode || "—") + ")"
-      : state.buzz.winnerTeam
-      ? "LOCKED: Team " + state.buzz.winnerTeam
-      : "CLOSED"
-    : "—";
+  if (phase === "FACE_OFF") {
+    const hasBuzzWinner = Boolean(state.buzz.winnerTeam);
 
-  const canApplyBuzz =
-    authed &&
-    state.buzz &&
-    Boolean(state.buzz.winnerTeam) &&
-    (state.phase === "FACE_OFF" || state.phase === "PLAY");
+    return (
+      <div className="card cardPrimary">
+        <div className="cardHeader">
+          <div className="cardHeaderTitle">Next Action</div>
+          <div className="cardHeaderSub">Determine who wins the face-off.</div>
+        </div>
+
+        <div className="nextActionTitle">Run the face-off</div>
+
+        <div className="nextActionRow">
+          <button
+            className="btn btnPrimary"
+            disabled={!a.openBuzzFaceoff}
+            title={disabledReason(state, "openBuzzFaceoff")}
+            onClick={() => send({ type: "OPEN_BUZZ", mode: "FACE_OFF" })}
+          >
+            Open Buzz (Face-off)
+          </button>
+
+          <button
+            className="btn btnGhost"
+            disabled={!a.manualPickFaceoff}
+            title={disabledReason(state, "manualPickFaceoff")}
+            onClick={() => send({ type: "SET_FACE_OFF_WINNER", team: "A" })}
+          >
+            Manual: {state.teams.A.name}
+          </button>
+
+          <button
+            className="btn btnGhost"
+            disabled={!a.manualPickFaceoff}
+            title={disabledReason(state, "manualPickFaceoff")}
+            onClick={() => send({ type: "SET_FACE_OFF_WINNER", team: "B" })}
+          >
+            Manual: {state.teams.B.name}
+          </button>
+        </div>
+
+        <div className="nextActionRow">
+          <button
+            className="btn btnGhost"
+            disabled={!a.applyBuzz || !hasBuzzWinner}
+            title={hasBuzzWinner ? disabledReason(state, "applyBuzz") : "No buzz winner yet."}
+            onClick={() => send({ type: "APPLY_BUZZ" })}
+          >
+            Apply Buzz Winner
+          </button>
+
+          <button
+            className="btn btnGhost"
+            disabled={!a.resetBuzz}
+            title={disabledReason(state, "resetBuzz")}
+            onClick={() => send({ type: "RESET_BUZZ" })}
+          >
+            Reset Buzz
+          </button>
+        </div>
+
+        <div className="hintSmall">Classic rule: face-off winner becomes Control Team.</div>
+      </div>
+    );
+  }
+
+  if (phase === "PLAY") {
+    return (
+      <div className="card cardPrimary">
+        <div className="cardHeader">
+          <div className="cardHeaderTitle">Next Action</div>
+          <div className="cardHeaderSub">Control team is answering. Reveal correct answers; add strikes for misses.</div>
+        </div>
+
+        <div className="nextActionTitle">Run the round</div>
+
+        <div className="nextActionRow">
+          <button
+            className="btn btnPrimary"
+            disabled={!a.reveal}
+            title={disabledReason(state, "reveal")}
+            onClick={() => {
+              const cur = state.current;
+              if (!cur) return;
+              const next = cur.answers.find((ans) => !cur.revealedAnswerIds[ans.id]);
+              if (!next) return;
+              send({ type: "REVEAL_ANSWER", answerId: next.id });
+            }}
+          >
+            Reveal Next Answer
+          </button>
+
+          <button
+            className="btn btnDanger"
+            disabled={!a.strike}
+            title={disabledReason(state, "strike")}
+            onClick={() => send({ type: "ADD_STRIKE" })}
+          >
+            Add Strike
+          </button>
+        </div>
+
+        <div className="hintSmall">After max strikes, the game transitions to Steal automatically.</div>
+      </div>
+    );
+  }
+
+  if (phase === "STEAL") {
+    return (
+      <div className="card cardPrimary">
+        <div className="cardHeader">
+          <div className="cardHeaderTitle">Next Action</div>
+          <div className="cardHeaderSub">Other team gets one guess. Record the outcome.</div>
+        </div>
+
+        <div className="nextActionTitle">Score the steal</div>
+
+        <div className="nextActionRow">
+          <button
+            className="btn btnPrimary"
+            disabled={!a.stealResult}
+            title={disabledReason(state, "stealResult")}
+            onClick={() => send({ type: "STEAL_RESULT", success: true })}
+          >
+            Steal Success
+          </button>
+
+          <button
+            className="btn btnDanger"
+            disabled={!a.stealResult}
+            title={disabledReason(state, "stealResult")}
+            onClick={() => send({ type: "STEAL_RESULT", success: false })}
+          >
+            Steal Failed
+          </button>
+        </div>
+
+        <div className="hintSmall">Classic: steal success wins the entire bank; otherwise control team keeps it.</div>
+      </div>
+    );
+  }
+
+  if (phase === "ROUND_END") {
+    return (
+      <div className="card cardPrimary">
+        <div className="cardHeader">
+          <div className="cardHeaderTitle">Next Action</div>
+          <div className="cardHeaderSub">Round is scored. Advance when ready.</div>
+        </div>
+
+        <div className="nextActionTitle">Advance</div>
+
+        <div className="nextActionRow">
+          <button
+            className="btn btnPrimary"
+            disabled={!a.nextRound}
+            title={disabledReason(state, "nextRound")}
+            onClick={() => send({ type: "NEXT_ROUND" })}
+          >
+            Next Round
+          </button>
+        </div>
+
+        <div className="hintSmall">The next round returns to Face-off.</div>
+      </div>
+    );
+  }
+
+  // GAME_END
+  return (
+    <div className="card cardPrimary">
+      <div className="cardHeader">
+        <div className="cardHeaderTitle">Next Action</div>
+        <div className="cardHeaderSub">Game is finished. Reset to play again.</div>
+      </div>
+
+      <div className="nextActionTitle">Reset</div>
+
+      <div className="nextActionRow">
+        <button className="btn btnDanger" onClick={() => send({ type: "RESET_TO_SETUP" })} title="Resets scores and returns to Setup.">
+          Reset to Setup
+        </button>
+      </div>
+
+      <div className="hintSmall">Tip: you can keep team names when resetting (we’ll add a confirm dialog next).</div>
+    </div>
+  );
+}
+
+export default function HostStage({ state, send, clearError, hostError }: Props) {
+  const cur = state.current;
+  const a = allowed(state);
+
+  const roundIndex = cur ? cur.roundIndex : -1;
+  const roundNum = roundIndex >= 0 ? roundIndex + 1 : 0;
+  const totalRounds = state.config.gameLength;
+
+  const revealedCount = useMemo(() => {
+    if (!cur) return 0;
+    return Object.values(cur.revealedAnswerIds).filter(Boolean).length;
+  }, [cur]);
+
+  const totalAnswers = cur ? cur.answers.length : 0;
+
+  const controlName = cur && cur.controlTeam ? teamName(state, cur.controlTeam) : "—";
+  const activeName = cur && cur.activeTeam ? teamName(state, cur.activeTeam) : "—";
+
+  const bankValue = cur ? String(cur.roundPoints) : "0";
+  const strikes = strikesText(cur);
+
+  const buzz: BuzzState = state.buzz;
+  const buzzWinnerTeam = buzz.winnerTeam;
+  const buzzOpen = buzz.open;
+  const buzzMode = buzz.mode;
+
+  // No memo: avoids react-hooks/preserve-manual-memoization and keeps deps simple.
+  const buzzStatus = (() => {
+    if (buzzWinnerTeam) return `Locked: ${teamName(state, buzzWinnerTeam)}`;
+    if (buzzOpen) return `Open (${buzzMode === "FACE_OFF" ? "Face-off" : "Play"})`;
+    return "Closed";
+  })();
+
+  // Remount SetupCard when entering SETUP to re-seed its local fields.
+  const setupKey = useMemo(() => {
+    if (state.phase === "SETUP") return `setup:${state.lastEventId}`;
+    return "setup:inactive";
+  }, [state.phase, state.lastEventId]);
+
+  const tone = phaseTone(state.phase);
 
   return (
     <div className="hostRoot">
-      <div className="hostStage">
-        <div className="hostTopBar">
-          <div className="hostTitle">
-            <h1>Host Console</h1>
-            <div>
-              Phase: <strong>{state.phase}</strong> · Control:{" "}
-              <strong>{controlTeam}</strong> · Active:{" "}
-              <strong>{activeTeam}</strong>
-            </div>
-          </div>
-          <div className="hostChip">Connected</div>
-        </div>
-
-        {state.phase !== "SETUP" ? (
-          <div className="activeBanner">
-            <div>
-              <div className="activeBannerTitle">Active Team</div>
-              <div className="activeBannerTeam">{activeTeam}</div>
-            </div>
-            <div className="activeBadge">{state.phase}</div>
-          </div>
-        ) : null}
-
-        <div className="nowBanner">
-          <div className="nowTitle">Now</div>
-          <div className="nowAction">{now.action}</div>
-          {now.hint ? <div className="nowHint">{now.hint}</div> : null}
-        </div>
-
-        <div className="kpiRow">
-          <div className="kpi">
-            <div className="kpiLabel">Team A</div>
-            <div className="kpiValue">
-              {state.teams.A.name}: {state.teams.A.score}
-            </div>
-          </div>
-
-          <div className="kpi">
-            <div className="kpiLabel">Bank</div>
-            <div className="kpiValue">{bank}</div>
-          </div>
-
-          <div className="kpi">
-            <div className="kpiLabel">Team B</div>
-            <div className="kpiValue">
-              {state.teams.B.name}: {state.teams.B.score}
-            </div>
+      <div className="hostShellWide">
+        {/* Sticky Status Strip */}
+        <div className="statusStrip">
+          <StatusPill label="PHASE" value={phaseLabel(state.phase)} tone={tone} />
+          <StatusPill label="ROUND" value={roundNum > 0 ? `${roundNum}/${totalRounds}` : `—/${totalRounds}`} />
+          <StatusPill label="CONTROL" value={controlName} />
+          <StatusPill label="ACTIVE" value={activeName} />
+          {state.phase === "PLAY" || state.phase === "STEAL" ? <StatusPill label="BANK" value={`${bankValue} pts`} tone="play" /> : null}
+          <StatusPill label="STRIKES" value={strikes} tone={cur && cur.strikes > 0 ? "danger" : "neutral"} />
+          <StatusPill label="BUZZ" value={buzzStatus} tone={buzzWinnerTeam || buzzOpen ? "info" : "neutral"} />
+          <div className="pinPill">
+            <div className="pinLabel">PIN</div>
+            <div className="pinValue">{state.config.hostPin}</div>
           </div>
         </div>
 
+        <div className="hostTopTitle">
+          <div>
+            <div className="hostH1">Host Console</div>
+            <div className="hostMuted">Classic rules, strict mode. Only phase-legal actions are clickable.</div>
+          </div>
+        </div>
+
+        {hostError ? <div className="hostError">{hostError}</div> : null}
+
+        {/* Next Action */}
+        <NextActionCard state={state} send={send} />
+
+        {/* Main layout */}
         <div className="hostGrid">
-          {/* LEFT: main phase controls */}
-          <div className="row">
-            {/* SETUP */}
-            {state.phase === "SETUP" ? (
-              <div className="card">
-                <div className="cardHeader">
-                  <div className="cardHeaderTitle">Game Setup</div>
-                  <div className="cardHeaderSub">
-                    Set team names and start a 3 or 5 round game.
-                  </div>
-                </div>
+          {/* LEFT: round running */}
+          <div className="col">
+            <SetupCard key={setupKey} state={state} send={send} clearError={clearError} />
 
-                <div className="row2">
-                  <input
-                    className="input"
-                    value={teamAName}
-                    onChange={(e) => setTeamAName(e.target.value)}
-                  />
-                  <input
-                    className="input"
-                    value={teamBName}
-                    onChange={(e) => setTeamBName(e.target.value)}
-                  />
-                </div>
-
-                <div className="row2" style={{ marginTop: 10 }}>
-                  <button
-                    className="btn btnPrimary"
-                    onClick={() =>
-                      send({
-                        type: "SETUP_GAME",
-                        teamAName,
-                        teamBName,
-                        gameLength: 3,
-                        packId: state.packId
-                      })
-                    }
-                  >
-                    Start (3 rounds)
-                  </button>
-                  <button
-                    className="btn btnPrimary"
-                    onClick={() =>
-                      send({
-                        type: "SETUP_GAME",
-                        teamAName,
-                        teamBName,
-                        gameLength: 5,
-                        packId: state.packId
-                      })
-                    }
-                  >
-                    Start (5 rounds)
-                  </button>
-                </div>
-              </div>
-            ) : null}
-
-            {/* FACE-OFF (manual fallback still available) */}
-            {state.phase === "FACE_OFF" ? (
-              <div className="card">
-                <div className="cardHeader">
-                  <div className="cardHeaderTitle">Face-Off</div>
-                  <div className="cardHeaderSub">
-                    Best practice: Open Buzz (Face-off), then Apply winner. Manual buttons remain as fallback.
-                  </div>
-                </div>
-
-                <div className="row2">
-                  <button
-                    className="btn btnPrimary"
-                    disabled={!canFaceOff}
-                    onClick={() => send({ type: "SET_FACE_OFF_WINNER", team: "A" })}
-                  >
-                    {state.teams.A.name} Wins (Manual)
-                  </button>
-                  <button
-                    className="btn btnPrimary"
-                    disabled={!canFaceOff}
-                    onClick={() => send({ type: "SET_FACE_OFF_WINNER", team: "B" })}
-                  >
-                    {state.teams.B.name} Wins (Manual)
-                  </button>
-                </div>
-              </div>
-            ) : null}
-
-            {/* PLAY / STEAL */}
-            {state.phase === "PLAY" || state.phase === "STEAL" ? (
-              <div className="card">
-                <div className="cardHeader">
-                  <div className="cardHeaderTitle">
-                    {state.phase === "STEAL" ? "Steal Resolution" : "Round Controls"}
-                  </div>
-                  <div className="cardHeaderSub">
-                    {state.phase === "STEAL"
-                      ? "If they guessed a remaining answer, tap it below. Otherwise, mark steal failed."
-                      : "Reveal correct answers or add strikes for wrong guesses."}
-                  </div>
-                </div>
-
-                <RevealPad
-                  round={cur}
-                  disabled={!canReveal}
-                  onReveal={(answerId) => send({ type: "REVEAL_ANSWER", answerId })}
-                />
-
-                <div className="sep" />
-
-                {state.phase === "PLAY" ? (
-                  <div className="row2">
-                    <button
-                      className="btn btnDanger"
-                      disabled={!canStrike}
-                      onClick={() => send({ type: "ADD_STRIKE" })}
-                    >
-                      Add Strike ({strikes}/{maxStrikes})
-                    </button>
-
-                    <button
-                      className="btn btnPrimary"
-                      disabled={!canStartSteal}
-                      onClick={() => send({ type: "START_STEAL" })}
-                    >
-                      Start Steal
-                    </button>
-                  </div>
-                ) : null}
-
-                {state.phase === "STEAL" ? (
-                  <div className="row" style={{ marginTop: 10 }}>
-                    <div className="small">Unrevealed answers (tap to mark steal success)</div>
-
-                    {unrevealed.length === 0 ? (
-                      <div className="small">No unrevealed answers remaining.</div>
-                    ) : (
-                      unrevealed.map((a) => (
-                        <button
-                          key={a.id}
-                          className="btn btnPrimary"
-                          onClick={() => {
-                            send({ type: "REVEAL_ANSWER", answerId: a.id });
-                            send({ type: "STEAL_RESULT", success: true });
-                          }}
-                        >
-                          Steal Success: {a.text} ({a.points})
-                        </button>
-                      ))
-                    )}
-
-                    <button
-                      className="btn btnDanger"
-                      onClick={() => send({ type: "STEAL_RESULT", success: false })}
-                    >
-                      Steal Failed
-                    </button>
-                  </div>
-                ) : null}
-              </div>
-            ) : null}
-
-            {/* ROUND END */}
-            {state.phase === "ROUND_END" ? (
-              <div className="card">
-                <div className="cardHeader">
-                  <div className="cardHeaderTitle">Round Complete</div>
-                  <div className="cardHeaderSub">
-                    Confirm everyone saw the result on the TV, then advance.
-                  </div>
-                </div>
-
-                <div className="row2">
-                  <button
-                    className="btn btnPrimary"
-                    disabled={!canNextRound}
-                    onClick={() => send({ type: "NEXT_ROUND" })}
-                  >
-                    Next Round
-                  </button>
-
-                  <button
-                    className="btn btnDanger"
-                    disabled={!canEndGame}
-                    onClick={() => setConfirmEnd(true)}
-                  >
-                    End Game
-                  </button>
-                </div>
-              </div>
-            ) : null}
-
-            {/* GAME END */}
-            {state.phase === "GAME_END" ? (
-              <div className="card">
-                <div className="cardHeader">
-                  <div className="cardHeaderTitle">Game Over</div>
-                  <div className="cardHeaderSub">
-                    End the game to return to Setup and start a new one.
-                  </div>
-                </div>
-
-                <button
-                  className="btn btnDanger"
-                  disabled={!canEndGame}
-                  onClick={() => send({ type: "END_GAME" })}
-                >
-                  End Game (Reset)
-                </button>
-              </div>
-            ) : null}
-          </div>
-
-          {/* RIGHT: sticky control desk (laptop) / stacked (mobile) */}
-          <div className="row sideCard">
+            {/* Answers */}
             <div className="card">
               <div className="cardHeader">
-                <div className="cardHeaderTitle">Control Desk</div>
-                <div className="cardHeaderSub">Buzzer, audio, and safety controls.</div>
+                <div className="cardHeaderTitle">Answers</div>
+                <div className="cardHeaderSub">
+                  Reveal answers during Play only. ({totalAnswers ? `${revealedCount}/${totalAnswers} revealed` : "no round loaded"})
+                </div>
               </div>
 
-              <div className="row">
-                <div className="small">
-                  Buzzer: <strong>{buzzStatus}</strong>
+              {!cur ? (
+                <div className="hostMuted">No round loaded yet. Start a game.</div>
+              ) : (
+                <div className="revealGrid">
+                  {cur.answers.map((ans) => {
+                    const revealed = Boolean(cur.revealedAnswerIds[ans.id]);
+                    const dis = !a.reveal || revealed;
+                    const reason = revealed ? "Already revealed." : disabledReason(state, "reveal");
+                    return (
+                      <button
+                        key={ans.id}
+                        className={revealed ? "btn btnReveal btnRevealOn" : "btn btnReveal"}
+                        disabled={dis}
+                        title={dis ? reason : ""}
+                        onClick={() => send({ type: "REVEAL_ANSWER", answerId: ans.id })}
+                      >
+                        <span className="revealText">{ans.text}</span>
+                        <span className="revealPts">{ans.points}</span>
+                      </button>
+                    );
+                  })}
                 </div>
+              )}
+            </div>
+
+            {/* Play controls */}
+            <div className="card">
+              <div className="cardHeader">
+                <div className="cardHeaderTitle">Round Controls</div>
+                <div className="cardHeaderSub">Strict: actions unlock only in the correct phase.</div>
+              </div>
+
+              <div className="btnRow">
+                <button
+                  className="btn btnDanger"
+                  disabled={!a.strike}
+                  title={!a.strike ? disabledReason(state, "strike") : ""}
+                  onClick={() => send({ type: "ADD_STRIKE" })}
+                >
+                  Add Strike
+                </button>
+
+                <button
+                  className="btn btnGhost"
+                  disabled={!a.startSteal}
+                  title={!a.startSteal ? disabledReason(state, "startSteal") : "Optional: start steal early for a twist."}
+                  onClick={() => send({ type: "START_STEAL" })}
+                >
+                  Start Steal (Early)
+                </button>
 
                 <button
                   className="btn btnPrimary"
-                  disabled={state.phase !== "FACE_OFF"}
+                  disabled={!a.nextRound}
+                  title={!a.nextRound ? disabledReason(state, "nextRound") : ""}
+                  onClick={() => send({ type: "NEXT_ROUND" })}
+                >
+                  Next Round
+                </button>
+              </div>
+
+              {!a.nextRound && state.phase !== "ROUND_END" ? <div className="hintSmall">Next Round unlocks at Round End.</div> : null}
+            </div>
+          </div>
+
+          {/* RIGHT: faceoff/buzz, steal, audio, menu */}
+          <div className="col">
+            {/* Face-off & Buzz */}
+            <div className="card">
+              <div className="cardHeader">
+                <div className="cardHeaderTitle">Face-off & Buzz</div>
+                <div className="cardHeaderSub">Buzzing is enabled during Face-off (and optionally Play).</div>
+              </div>
+
+              <div className="btnRow">
+                <button
+                  className="btn btnPrimary"
+                  disabled={!a.openBuzzFaceoff}
+                  title={!a.openBuzzFaceoff ? disabledReason(state, "openBuzzFaceoff") : ""}
                   onClick={() => send({ type: "OPEN_BUZZ", mode: "FACE_OFF" })}
                 >
                   Open Buzz (Face-off)
                 </button>
 
                 <button
-                  className="btn btnPrimary"
-                  disabled={state.phase !== "PLAY"}
+                  className="btn btnGhost"
+                  disabled={!a.openBuzzPlay}
+                  title={!a.openBuzzPlay ? disabledReason(state, "openBuzzPlay") : "Optional: quick buzz to decide who answers next, without changing control team."}
                   onClick={() => send({ type: "OPEN_BUZZ", mode: "PLAY" })}
                 >
                   Open Buzz (Play)
                 </button>
 
-                <button className="btn btnGhost" onClick={() => send({ type: "RESET_BUZZ" })}>
+                <button
+                  className="btn btnGhost"
+                  disabled={!a.resetBuzz}
+                  title={!a.resetBuzz ? disabledReason(state, "resetBuzz") : ""}
+                  onClick={() => send({ type: "RESET_BUZZ" })}
+                >
                   Reset Buzz
                 </button>
 
-                <div className="row2">
-                  <button className="btn btnGhost" onClick={() => send({ type: "OVERRIDE_BUZZ", team: "A" })}>
-                    Override → A
-                  </button>
-                  <button className="btn btnGhost" onClick={() => send({ type: "OVERRIDE_BUZZ", team: "B" })}>
-                    Override → B
-                  </button>
-                </div>
-
-                <button className="btn btnPrimary" disabled={!canApplyBuzz} onClick={() => send({ type: "APPLY_BUZZ" })}>
-                  Apply Winner to Game
+                <button
+                  className="btn btnGhost"
+                  disabled={!a.applyBuzz}
+                  title={!a.applyBuzz ? disabledReason(state, "applyBuzz") : ""}
+                  onClick={() => send({ type: "APPLY_BUZZ" })}
+                >
+                  Apply Winner
                 </button>
+              </div>
 
-                <div className="sep" />
+              <div className="btnRow">
+                <button
+                  className="btn btnGhost"
+                  disabled={!a.manualPickFaceoff}
+                  title={!a.manualPickFaceoff ? disabledReason(state, "manualPickFaceoff") : ""}
+                  onClick={() => send({ type: "SET_FACE_OFF_WINNER", team: "A" })}
+                >
+                  Manual: {state.teams.A.name}
+                </button>
 
                 <button
                   className="btn btnGhost"
-                  onClick={() => send({ type: "SET_AUDIO", enabled: !state.audio.enabled })}
+                  disabled={!a.manualPickFaceoff}
+                  title={!a.manualPickFaceoff ? disabledReason(state, "manualPickFaceoff") : ""}
+                  onClick={() => send({ type: "SET_FACE_OFF_WINNER", team: "B" })}
                 >
+                  Manual: {state.teams.B.name}
+                </button>
+
+                <button
+                  className="btn btnGhost"
+                  disabled={!a.openBuzzFaceoff && !a.openBuzzPlay}
+                  title={!a.openBuzzFaceoff && !a.openBuzzPlay ? "Buzz is available during Face-off (and optionally Play)." : ""}
+                  onClick={() => {
+                    // Intentionally inert: this is a status button.
+                  }}
+                >
+                  Winner: {buzzWinnerTeam ? teamName(state, buzzWinnerTeam) : "—"}
+                </button>
+              </div>
+
+              <div className="hintSmall">Classic: face-off winner becomes Control Team. Buzz winner can be applied or overridden.</div>
+            </div>
+
+            {/* Steal */}
+            <div className="card">
+              <div className="cardHeader">
+                <div className="cardHeaderTitle">Steal</div>
+                <div className="cardHeaderSub">Enabled only during Steal phase.</div>
+              </div>
+
+              <div className="btnRow">
+                <button
+                  className="btn btnPrimary"
+                  disabled={!a.stealResult}
+                  title={!a.stealResult ? disabledReason(state, "stealResult") : ""}
+                  onClick={() => send({ type: "STEAL_RESULT", success: true })}
+                >
+                  Steal Success
+                </button>
+                <button
+                  className="btn btnDanger"
+                  disabled={!a.stealResult}
+                  title={!a.stealResult ? disabledReason(state, "stealResult") : ""}
+                  onClick={() => send({ type: "STEAL_RESULT", success: false })}
+                >
+                  Steal Failed
+                </button>
+              </div>
+
+              {!a.stealResult ? <div className="hintSmall">Steal controls unlock after max strikes.</div> : null}
+            </div>
+
+            {/* Audio */}
+            <div className="card">
+              <div className="cardHeader">
+                <div className="cardHeaderTitle">Audio</div>
+                <div className="cardHeaderSub">Safe at any time.</div>
+              </div>
+
+              <div className="row">
+                <button className="btn btnGhost" onClick={() => send({ type: "SET_AUDIO", enabled: !state.audio.enabled })}>
                   {state.audio.enabled ? "Mute Board" : "Unmute Board"}
                 </button>
 
-                <label className="small">
-                  Volume: {Math.round(state.audio.volume * 100)}%
+                <div>
+                  <div className="label">Volume</div>
                   <input
-                    style={{ width: "100%", marginTop: 8 }}
+                    className="range"
                     type="range"
                     min={0}
                     max={100}
                     value={Math.round(state.audio.volume * 100)}
-                    onChange={(e) => send({ type: "SET_AUDIO", volume: Number(e.target.value) / 100 })}
+                    onChange={(e) => {
+                      const v = Number(e.target.value);
+                      send({ type: "SET_AUDIO", volume: v / 100 });
+                    }}
                   />
-                </label>
-
-                <button
-                  className="btn btnDanger"
-                  disabled={!canEndGame}
-                  onClick={() => setConfirmEnd(true)}
-                >
-                  End Game
-                </button>
+                </div>
               </div>
             </div>
 
-            {confirmEnd ? (
-              <div
-                className="nowBanner"
-                style={{
-                  borderColor: "rgba(255,90,90,0.45)",
-                  background: "rgba(255,70,70,0.12)"
-                }}
-              >
-                <div className="nowTitle">Confirm</div>
-                <div className="nowAction">End the game now?</div>
-                <div className="nowHint">This resets the flow back to setup.</div>
-
-                <div className="actionRow" style={{ marginTop: 10 }}>
-                  <button className="btn btnDanger" onClick={() => send({ type: "END_GAME" })}>
-                    Yes, End
-                  </button>
-                  <button className="btn btnGhost" onClick={() => setConfirmEnd(false)}>
-                    Cancel
-                  </button>
-                </div>
+            {/* Game Menu */}
+            <div className="card">
+              <div className="cardHeader">
+                <div className="cardHeaderTitle">Game Menu</div>
+                <div className="cardHeaderSub">Admin actions (add confirmations next).</div>
               </div>
-            ) : null}
+
+              <div className="btnRow">
+                <button
+                  className="btn btnGhost"
+                  disabled={!a.restartRound}
+                  title={!a.restartRound ? disabledReason(state, "restartRound") : ""}
+                  onClick={() => send({ type: "RESTART_ROUND" })}
+                >
+                  Restart Round
+                </button>
+
+                <button className="btn btnDanger" onClick={() => send({ type: "RESET_TO_SETUP" })} title="Resets scores and progress. Confirm dialog is next.">
+                  Reset to Setup
+                </button>
+
+                <button className="btn btnGhost" onClick={() => send({ type: "END_GAME" })} title="Ends the game immediately. Confirm dialog is next.">
+                  End Game
+                </button>
+              </div>
+
+              <div className="hintSmall">Next improvement: confirmations + (recommended) Undo.</div>
+            </div>
+
+            <div className="hostFooterNote">Strict mode: disabled controls stay visible. Hover or long-press for “why”.</div>
           </div>
         </div>
       </div>

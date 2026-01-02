@@ -9,10 +9,21 @@ export type GameEvent = {
     type: "SET_AUDIO";
     enabled?: boolean;
     volume?: number;
-} | {
+}
+/**
+ * We keep this event name because your project already uses it.
+ * BEHAVIOR (in reducer): during FACE_OFF, this AWARDS CONTROL and starts PLAY.
+ */
+ | {
     type: "SET_FACE_OFF_WINNER";
     team: TeamId;
-} | {
+}
+/**
+ * Reveal a tile.
+ * - FACE_OFF: reveal only (no bank) + record face-off step
+ * - PLAY: reveal + add points to bank
+ */
+ | {
     type: "REVEAL_ANSWER";
     answerId: string;
 } | {

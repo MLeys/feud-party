@@ -1,4 +1,12 @@
 export type TeamId = "A" | "B";
+export type TeamState = {
+    name: string;
+    score: number;
+};
+export type AudioState = {
+    enabled: boolean;
+    volume: number;
+};
 export type FeudAnswer = {
     id: string;
     text: string;
@@ -11,26 +19,14 @@ export type FeudRound = {
     answers: FeudAnswer[];
     maxStrikes?: number;
 };
-export type GameConfig = {
-    gameLength: 3 | 5;
-    hostPin: string;
-};
-export type AudioState = {
-    enabled: boolean;
-    volume: number;
-};
-export type Phase = "SETUP" | "FACE_OFF" | "PLAY" | "STEAL" | "ROUND_END" | "GAME_END";
-export type TeamState = {
-    name: string;
-    score: number;
-};
-export type BuzzMode = "FACE_OFF" | "PLAY";
-export type BuzzState = {
-    open: boolean;
-    mode: BuzzMode | null;
-    winnerTeam: TeamId | null;
-    winnerSocketId: string | null;
-    openedAt: number | null;
+export type FaceOffState = {
+    step: 0 | 1 | 2;
+    firstTeam: TeamId | null;
+    firstAnswerId: string | null;
+    firstPoints: number | null;
+    secondTeam: TeamId | null;
+    secondAnswerId: string | null;
+    secondPoints: number | null;
 };
 export type RoundState = {
     roundIndex: number;
@@ -42,12 +38,28 @@ export type RoundState = {
     controlTeam: TeamId | null;
     activeTeam: TeamId | null;
     roundPoints: number;
+    faceOff: FaceOffState;
+};
+export type BuzzState = {
+    open: boolean;
+    mode: "FACE_OFF" | "PLAY" | null;
+    winnerTeam: TeamId | null;
+    winnerSocketId: string | null;
+    openedAt: number | null;
+};
+export type GamePhase = "SETUP" | "FACE_OFF" | "PLAY" | "STEAL" | "ROUND_END" | "GAME_END";
+export type GameConfig = {
+    gameLength: 3 | 5;
+    hostPin: string;
 };
 export type GameState = {
-    phase: Phase;
+    phase: GamePhase;
     config: GameConfig;
     audio: AudioState;
-    teams: Record<TeamId, TeamState>;
+    teams: {
+        A: TeamState;
+        B: TeamState;
+    };
     packId: string;
     rounds: FeudRound[];
     current: RoundState | null;

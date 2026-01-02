@@ -90,15 +90,14 @@
 }
 
 .prompt {
-    /* Keep header from consuming the whole screen on long prompts */
+  /* Keep header from consuming the whole screen on long prompts */
   display: -webkit-box;
-  -webkit-line-clamp: 2;         /* 2 lines max */
+  -webkit-line-clamp: 3; /* 3 lines max */
   -webkit-box-orient: vertical;
   overflow: hidden;
 
   margin: 0;
   font-size: clamp(38px, 3.4vw, 76px);
-  line-height: 1.05;
   font-weight: 900;
   letter-spacing: -0.02em;
 
@@ -192,9 +191,10 @@
   height: 100%;
   min-height: 0;
 
-  /* Make tiles distribute evenly vertically (great for 8 answers / 2 cols) */
-  grid-auto-rows: 1fr;
+  /* Fix overlap: ensure rows are real tracks that can shrink cleanly */
+  grid-auto-rows: minmax(0, 1fr);
   align-content: stretch;
+  align-items: stretch;
 }
 
 /* ---------- Tiles ---------- */
@@ -209,16 +209,17 @@
   padding: clamp(8px, 1.0vh, 12px) clamp(10px, 1.2vw, 14px);
 
   display: grid;
+
+  /* Tighten right side: slightly smaller gap and keep points snug */
   grid-template-columns: clamp(54px, 4.2vw, 68px) minmax(0, 1fr) max-content;
-  column-gap: clamp(8px, 1.2vw, 14px);
+  column-gap: clamp(6px, 0.7vw, 10px);
   align-items: center;
 
   position: relative;
   overflow: hidden;
   user-select: none;
 
-  /* Critical: tile should stretch to row height */
-  height: 100%;
+  /* Fix overlap: do NOT force height:100% inside 1fr rows; let the grid size the item */
   min-height: 0;
 }
 
@@ -276,8 +277,12 @@
   background: rgba(0, 0, 0, 0.18);
 }
 
+/* Single definition (no duplicates) */
 .answerTextWrap {
   min-width: 0;
+  min-height: 0; /* allow FitText to shrink cleanly */
+  display: flex;
+  align-items: center;
 }
 
 .points {
@@ -286,9 +291,15 @@
   font-weight: 950;
   font-size: clamp(34px, 3.0vw, 56px);
   letter-spacing: -0.04em;
-  padding-right: 2px;
+
+  /* Remove unnecessary edge padding and keep it tight */
+  padding-right: 0;
+
   opacity: 0.95;
   white-space: nowrap;
+
+  /* Keep right column stable, but smaller than 3ch */
+  min-width: 2ch;
 }
 
 .pointsHidden {
@@ -428,7 +439,6 @@
   font-weight: 700;
 }
 
-
 /* If you ever run on a very short viewport (rare TV case), tighten a touch more */
 @media (max-height: 820px) {
   .boardStage {
@@ -457,6 +467,7 @@
     font-size: 44px;
   }
 }
+
 /* Strike pop overlay */
 .overlayStrikeLayer {
   z-index: 40; /* above regular overlays */
@@ -503,8 +514,8 @@
   45% { filter: saturate(1.25); }
   100% { filter: saturate(1); }
 }
-/* Append these to feud-party/client/src/board/board.css (or place near tile styles) */
 
+/* FitText helpers */
 .answerFit {
   width: 100%;
   min-width: 0;
@@ -514,17 +525,6 @@
   height: 1px;
 }
 
-.answerTextWrap {
-  min-width: 0;
-  min-height: 0; /* allow FitText to shrink cleanly */
-  display: flex;
-  align-items: center;
-}
-
-.points {
-  min-width: 3ch; /* keeps right column stable when hidden/revealed */
-}
-
 @media (min-width: 2400px) and (min-height: 1300px) {
   :root {
     --stage-pad-y: clamp(18px, 2.4vh, 42px);
@@ -532,5 +532,3 @@
     --footer-h: clamp(82px, 9.2vh, 120px);
   }
 }
-
-

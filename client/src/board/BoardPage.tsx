@@ -1,149 +1,178 @@
 // feud-party/client/src/board/BoardPage.tsx
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { GameState } from "@feud/shared";
 import { socket } from "../socket";
 import BoardStage from "./BoardStage";
 
-type SockStatus = {
-  connected: boolean;
-  id: string | null;
-  transport: string | null;
-  lastError: string | null;
-  lastSyncAt: number | null;
-};
+/**
+ * Audio files live in: client/public/sfx/
+ * Public URLs (Vite) resolve from the root, e.g. /sfx/strike.mp3
+ */
+const SFX = {
+  strike: "/sfx/strike.mp3",
+  reveal: "/sfx/reveal.mp3",
+  buzzOpen: "/sfx/buzz-open.mp3",
+  // You do not currently have a dedicated "lock" sound; reuse buzzOpen for now.
+  buzzLock: "/sfx/buzz-open.mp3",
+  roundEnd: "/sfx/round-end.mp3",
+  gameEnd: "/sfx/game-end.mp3",
 
-function timeAgo(ms: number | null) {
-  if (!ms) return "—";
-  const s = Math.max(0, Math.floor((Date.now() - ms) / 1000));
-  if (s < 5) return "just now";
-  if (s < 60) return `${s}s ago`;
-  const m = Math.floor(s / 60);
-  return `${m}m ago`;
+  // Optional extras you already have (not wired yet, but ready)
+  correct: "/sfx/correct.mp3",
+  wrong: "/sfx/wrong.mp3"
+} as const;
+
+type SfxKey = keyof typeof SFX;
+
+function countRevealed(state: GameState | null): number {
+  const cur = state?.current;
+  if (!cur) return 0;
+  let c = 0;
+  for (const k in cur.revealedAnswerIds) if (cur.revealedAnswerIds[k]) c++;
+  return c;
 }
 
 export default function BoardPage() {
   const [state, setState] = useState<GameState | null>(null);
-  const lastEventIdRef = useRef<number>(0);
+  const prevStateRef = useRef<GameState | null>(null);
 
-  const [sock, setSock] = useState<SockStatus>(() => ({
-    connected: socket.connected,
-    id: socket.id || null,
-    transport: null,
-    lastError: null,
-    lastSyncAt: null
-  }));
+  // Autoplay guard UX (TV browser may require one click)
+  const [needsInteraction, setNeedsInteraction] = useState(false);
+
+  // Cache HTMLAudioElements to avoid re-downloading
+  const audioCacheRef = useRef<Record<string, HTMLAudioElement>>({});
+
+  function getAudio(url: string): HTMLAudioElement {
+    const cache = audioCacheRef.current;
+    if (!cache[url]) {
+      const a = new Audio(url);
+      a.preload = "auto";
+      cache[url] = a;
+    }
+    return cache[url];
+  }
+
+  function playSfx(next: GameState, key: SfxKey) {
+    if (!next.audio.enabled) return;
+
+    const url = SFX[key];
+    const a = getAudio(url);
+
+    // enforce state volume
+    a.volume = Math.max(0, Math.min(1, next.audio.volume));
+
+    // restart if triggered rapidly
+    try {
+      a.currentTime = 0;
+    } catch {
+      // ignore
+    }
+
+    const p = a.play();
+    if (p && typeof p.catch === "function") {
+      p.catch(() => {
+        // Most common: NotAllowedError until first user interaction
+        setNeedsInteraction(true);
+      });
+    }
+  }
+
+  function detectAndPlay(prev: GameState | null, next: GameState) {
+    if (!prev) return;
+
+    // Strike increased
+    const prevStrikes = prev.current?.strikes ?? 0;
+    const nextStrikes = next.current?.strikes ?? 0;
+    if (nextStrikes > prevStrikes) {
+      playSfx(next, "strike");
+      return;
+    }
+
+    // Reveal increased
+    const prevRevealed = countRevealed(prev);
+    const nextRevealed = countRevealed(next);
+    if (nextRevealed > prevRevealed) {
+      playSfx(next, "reveal");
+      return;
+    }
+
+    // Buzz opened
+    const prevBuzzOpen = Boolean(prev.buzz?.open);
+    const nextBuzzOpen = Boolean(next.buzz?.open);
+    if (!prevBuzzOpen && nextBuzzOpen) {
+      playSfx(next, "buzzOpen");
+      return;
+    }
+
+    // Buzz locked (winner appears)
+    const prevWinner = prev.buzz?.winnerTeam ?? null;
+    const nextWinner = next.buzz?.winnerTeam ?? null;
+    if (!prevWinner && nextWinner) {
+      playSfx(next, "buzzLock");
+      return;
+    }
+
+    // Phase transitions
+    if (prev.phase !== next.phase) {
+      if (next.phase === "ROUND_END") {
+        playSfx(next, "roundEnd");
+        return;
+      }
+      if (next.phase === "GAME_END") {
+        playSfx(next, "gameEnd");
+        return;
+      }
+    }
+  }
 
   useEffect(() => {
-    const onConnect = () => {
-      const t = socket.io.engine && socket.io.engine.transport ? socket.io.engine.transport.name : null;
-      setSock((prev) => ({
-        ...prev,
-        connected: true,
-        id: socket.id || null,
-        transport: t,
-        lastError: null
-      }));
-      socket.emit("state:request");
-    };
-
-    const onDisconnect = () => {
-      setSock((prev) => ({
-        ...prev,
-        connected: false,
-        id: socket.id || null
-      }));
-    };
-
-    const onConnectError = (err: unknown) => {
-      const msg =
-        typeof err === "object" && err && "message" in err
-          ? String((err as { message: unknown }).message)
-          : String(err);
-
-      setSock((prev) => ({
-        ...prev,
-        connected: false,
-        id: socket.id || null,
-        lastError: msg
-      }));
-    };
-
     const onSync = (s: GameState) => {
+      detectAndPlay(prevStateRef.current, s);
+      prevStateRef.current = s;
       setState(s);
-      setSock((prev) => ({ ...prev, lastSyncAt: Date.now() }));
-
-      if (s.lastEventId > lastEventIdRef.current) {
-        lastEventIdRef.current = s.lastEventId;
-      }
     };
 
-    socket.on("connect", onConnect);
-    socket.on("disconnect", onDisconnect);
-    socket.on("connect_error", onConnectError);
     socket.on("state:sync", onSync);
-
-    // If we mounted after a connect, request immediately
     socket.emit("state:request");
 
     return () => {
-      socket.off("connect", onConnect);
-      socket.off("disconnect", onDisconnect);
-      socket.off("connect_error", onConnectError);
       socket.off("state:sync", onSync);
     };
   }, []);
 
-  const socketUrl = useMemo(() => {
-    const host = window.location.hostname;
-    const isViteDev = window.location.port === "5173";
-    return isViteDev ? `http://${host}:3000` : window.location.origin;
-  }, []);
-
   if (!state) {
-    return (
-      <div style={{ padding: 24, fontFamily: "system-ui", lineHeight: 1.35 }}>
-        <div style={{ fontSize: 20, fontWeight: 800, marginBottom: 10 }}>Connecting…</div>
-
-        <div style={{ maxWidth: 720, padding: 12, border: "1px solid #ddd", borderRadius: 10 }}>
-          <div style={{ fontWeight: 700, marginBottom: 6 }}>Socket Diagnostics</div>
-
-          <div>Socket URL: <code>{socketUrl}</code></div>
-          <div>Connected: <strong>{sock.connected ? "Yes" : "No"}</strong></div>
-          <div>Socket ID: <code>{sock.id || "—"}</code></div>
-          <div>Transport: <strong>{sock.transport || "—"}</strong></div>
-          <div>Last state:sync: <strong>{timeAgo(sock.lastSyncAt)}</strong></div>
-
-          {sock.lastError ? (
-            <div style={{ marginTop: 10, color: "#b00020" }}>
-              <div style={{ fontWeight: 700 }}>Last Error</div>
-              <div style={{ whiteSpace: "pre-wrap" }}>{sock.lastError}</div>
-            </div>
-          ) : null}
-
-          <div style={{ marginTop: 12 }}>
-            <button
-              onClick={() => socket.emit("state:request")}
-              style={{
-                padding: "10px 12px",
-                borderRadius: 10,
-                border: "1px solid #ccc",
-                background: "#fff",
-                cursor: "pointer",
-                fontWeight: 700
-              }}
-            >
-              Request State
-            </button>
-          </div>
-
-          <div style={{ marginTop: 10, opacity: 0.75 }}>
-            If “Connected: Yes” but “Last state:sync” stays “—”, the server is not emitting to this client,
-            or the event name differs.
-          </div>
-        </div>
-      </div>
-    );
+    return <div style={{ padding: 24, fontFamily: "system-ui" }}>Connecting…</div>;
   }
 
-  return <BoardStage state={state} />;
+  return (
+    <div style={{ position: "relative" }}>
+      {needsInteraction && state.audio.enabled ? (
+        <button
+          onClick={() => {
+            setNeedsInteraction(false);
+            // small test sound to unlock audio
+            playSfx(state, "reveal");
+          }}
+          style={{
+            position: "absolute",
+            top: 16,
+            right: 16,
+            zIndex: 9999,
+            padding: "10px 12px",
+            borderRadius: 999,
+            border: "1px solid rgba(255,255,255,0.25)",
+            background: "rgba(0,0,0,0.5)",
+            color: "rgba(255,255,255,0.9)",
+            fontWeight: 700,
+            cursor: "pointer",
+            backdropFilter: "blur(10px)"
+          }}
+        >
+          Click to enable sound
+        </button>
+      ) : null}
+
+      <BoardStage state={state} />
+    </div>
+  );
 }

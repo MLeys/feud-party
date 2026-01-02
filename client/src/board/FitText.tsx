@@ -28,7 +28,6 @@ export default function FitText({
 }: FitTextProps) {
   const hostRef = useRef<HTMLDivElement | null>(null);
   const measRef = useRef<HTMLDivElement | null>(null);
-
   const [fontPx, setFontPx] = useState(maxPx);
 
   useEffect(() => {
@@ -39,20 +38,27 @@ export default function FitText({
     let raf = 0;
 
     const fit = () => {
-      const { width, height } = host.getBoundingClientRect();
+      const rect = host.getBoundingClientRect();
+      const width = rect.width;
+      const height = rect.height;
+
       if (width <= 0 || height <= 0) return;
 
-      // Measurement element: same width, allowed to wrap.
+      // Configure the hidden measurement element to match wrapping behavior.
       meas.style.width = px(width);
       meas.style.fontWeight = String(fontWeight);
       meas.style.lineHeight = String(lineHeight);
       meas.style.whiteSpace = "normal";
       meas.style.wordBreak = "break-word";
+      meas.style.overflowWrap = "anywhere";
       meas.style.display = "block";
       meas.style.position = "absolute";
       meas.style.visibility = "hidden";
       meas.style.pointerEvents = "none";
+      meas.style.left = "0";
+      meas.style.top = "0";
 
+      // Binary search font size by height constraint.
       let lo = minPx;
       let hi = maxPx;
       let best = minPx;
@@ -62,9 +68,9 @@ export default function FitText({
         meas.style.fontSize = px(mid);
         meas.textContent = text;
 
-        // Force layout
         const scrollH = meas.scrollHeight;
 
+        // Budget: must fit in host height; also cap by maxLines.
         const maxAllowedHeight = Math.min(height, maxLines * mid * lineHeight + 0.5);
         const fitsHeight = scrollH <= maxAllowedHeight + 0.5;
 
@@ -76,7 +82,8 @@ export default function FitText({
         }
       }
 
-      setFontPx(best);
+      // Avoid state churn if unchanged (helps React Compiler + reduces renders)
+      setFontPx((prev) => (Math.abs(prev - best) < 0.5 ? prev : best));
     };
 
     const ro = new ResizeObserver(() => {
@@ -104,13 +111,13 @@ export default function FitText({
           display: "-webkit-box",
           WebkitLineClamp: maxLines,
           WebkitBoxOrient: "vertical",
-          overflow: "hidden"
+          overflow: "hidden",
+          minWidth: 0
         }}
       >
         {text}
       </div>
 
-      {/* Hidden measurement element */}
       <div ref={measRef} />
     </div>
   );

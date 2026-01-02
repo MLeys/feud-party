@@ -6,24 +6,25 @@ import "./buzz.css";
 
 type Team = TeamId;
 
-function getTeamLabel(state: GameState | null, t: TeamId): string {
+type SockStatus = {
+  connected: boolean;
+  id: string | null;
+  lastError: string | null;
+  lastSyncAt: number | null;
+};
+
+function teamLabel(state: GameState | null, t: TeamId): string {
   if (!state) return t === "A" ? "Team A" : "Team B";
   return t === "A" ? state.teams.A.name : state.teams.B.name;
 }
 
-type BuzzUiStatus = "CONNECTING" | "CLOSED" | "OPEN" | "LOCKED_ME" | "LOCKED_OTHER";
-
-function computeUiStatus(state: GameState | null): BuzzUiStatus {
-  if (!state) return "CONNECTING";
-  const buzz = state.buzz;
-
-  if (buzz.open && !buzz.winnerTeam) return "OPEN";
-  if (buzz.winnerTeam) {
-    const myId = socket.id || null;
-    const iWon = Boolean(buzz.winnerSocketId && myId && buzz.winnerSocketId === myId);
-    return iWon ? "LOCKED_ME" : "LOCKED_OTHER";
-  }
-  return "CLOSED";
+function timeAgo(ms: number | null) {
+  if (!ms) return "—";
+  const s = Math.max(0, Math.floor((Date.now() - ms) / 1000));
+  if (s < 5) return "just now";
+  if (s < 60) return `${s}s ago`;
+  const m = Math.floor(s / 60);
+  return `${m}m ago`;
 }
 
 export default function BuzzPage() {
@@ -34,6 +35,13 @@ export default function BuzzPage() {
     return saved === "B" ? "B" : "A";
   });
 
+  const [sock, setSock] = useState<SockStatus>(() => ({
+    connected: socket.connected,
+    id: socket.id || null,
+    lastError: null,
+    lastSyncAt: null
+  }));
+
   const lastPressAtRef = useRef<number>(0);
 
   useEffect(() => {
@@ -41,74 +49,98 @@ export default function BuzzPage() {
   }, [team]);
 
   useEffect(() => {
-    const onSync = (s: GameState) => setState(s);
+    const onConnect = () => {
+      setSock((prev) => ({
+        ...prev,
+        connected: true,
+        id: socket.id || null,
+        lastError: null
+      }));
+      socket.emit("state:request");
+    };
+
+    const onDisconnect = () => {
+      setSock((prev) => ({
+        ...prev,
+        connected: false,
+        id: socket.id || null
+      }));
+    };
+
+    const onConnectError = (err: unknown) => {
+      const msg =
+        typeof err === "object" && err && "message" in err
+          ? String((err as { message: unknown }).message)
+          : String(err);
+
+      setSock((prev) => ({
+        ...prev,
+        connected: false,
+        id: socket.id || null,
+        lastError: msg
+      }));
+    };
+
+    const onSync = (s: GameState) => {
+      setState(s);
+      setSock((prev) => ({ ...prev, lastSyncAt: Date.now() }));
+    };
+
+    socket.on("connect", onConnect);
+    socket.on("disconnect", onDisconnect);
+    socket.on("connect_error", onConnectError);
     socket.on("state:sync", onSync);
+
+    // Kick-start a snapshot in case we mounted after connect
     socket.emit("state:request");
 
     return () => {
+      socket.off("connect", onConnect);
+      socket.off("disconnect", onDisconnect);
+      socket.off("connect_error", onConnectError);
       socket.off("state:sync", onSync);
     };
   }, []);
 
   const buzz: BuzzState | null = state ? state.buzz : null;
 
-  const teamAName = useMemo(() => getTeamLabel(state, "A"), [state]);
-  const teamBName = useMemo(() => getTeamLabel(state, "B"), [state]);
+  const teamAName = useMemo(() => teamLabel(state, "A"), [state]);
+  const teamBName = useMemo(() => teamLabel(state, "B"), [state]);
 
-  const uiStatus = useMemo(() => computeUiStatus(state), [state]);
-  const canBuzz = uiStatus === "OPEN";
-
-  const winnerTeam: TeamId | null = buzz && buzz.winnerTeam ? buzz.winnerTeam : null;
   const isOpen = Boolean(buzz && buzz.open);
+  const winnerTeam: TeamId | null = buzz && buzz.winnerTeam ? buzz.winnerTeam : null;
+
+  const iWon = Boolean(buzz && buzz.winnerSocketId && sock.id && buzz.winnerSocketId === sock.id);
+
+  const canBuzz = Boolean(buzz && buzz.open && !buzz.winnerTeam);
 
   const statusText = useMemo(() => {
-    switch (uiStatus) {
-      case "CONNECTING":
-        return "Connecting to game…";
-      case "OPEN":
-        return "Buzz is OPEN. Tap BUZZ now.";
-      case "LOCKED_ME":
-        return "Locked: YOU buzzed first.";
-      case "LOCKED_OTHER":
-        return "Locked: another device buzzed first.";
-      case "CLOSED":
-      default:
-        return "Buzz is closed. Wait for the host to open it.";
+    if (!state) return "Connecting to game…";
+    if (!buzz) return "Loading buzzer…";
+
+    if (buzz.open && !buzz.winnerTeam) return "Buzz is OPEN. Tap BUZZ now.";
+
+    if (buzz.winnerTeam) {
+      return iWon ? "Locked: YOU buzzed first." : "Locked: another device buzzed first.";
     }
-  }, [uiStatus]);
 
-  const hintText = useMemo(() => {
-    if (uiStatus === "OPEN") return "Be ready. First tap wins.";
-    if (uiStatus === "LOCKED_ME") return "Hold on—host will apply the winner.";
-    if (uiStatus === "LOCKED_OTHER") return "Wait—host may reset and reopen.";
-    return "Choose your team and wait.";
-  }, [uiStatus]);
-
-  const bigBuzzLabel = useMemo(() => {
-    if (uiStatus === "OPEN") return "BUZZ";
-    if (uiStatus === "LOCKED_ME") return "LOCKED (YOU)";
-    if (uiStatus === "LOCKED_OTHER") return "LOCKED";
-    if (uiStatus === "CONNECTING") return "CONNECTING";
-    return "WAIT";
-  }, [uiStatus]);
+    return "Buzz is closed. Wait for the host to open it.";
+  }, [state, buzz, iWon]);
 
   function pressBuzz() {
-    // Safety: should be disabled anyway, but keep logic bulletproof.
     if (!canBuzz) return;
 
-    // Throttle spam taps (mobile double-tap, long-press quirks)
+    // Throttle double-taps / accidental repeats
     const now = Date.now();
     if (now - lastPressAtRef.current < 250) return;
     lastPressAtRef.current = now;
 
     socket.emit("buzz:press", { team });
 
-    // Light haptic feedback on supported devices
     if (navigator.vibrate) navigator.vibrate(35);
   }
 
-  const showWinnerName =
-    winnerTeam ? (winnerTeam === "A" ? teamAName : teamBName) : null;
+  const winnerName = winnerTeam ? (winnerTeam === "A" ? teamAName : teamBName) : null;
 
   return (
     <div className="buzzRoot">
@@ -119,38 +151,23 @@ export default function BuzzPage() {
           <button
             className={team === "A" ? "teamBtn teamBtnActive" : "teamBtn"}
             onClick={() => setTeam("A")}
-            disabled={uiStatus !== "CLOSED" && uiStatus !== "CONNECTING"}
-            title={
-              uiStatus === "OPEN" || uiStatus === "LOCKED_ME" || uiStatus === "LOCKED_OTHER"
-                ? "Team is locked while buzz is active."
-                : ""
-            }
+            disabled={isOpen || Boolean(winnerTeam)}
+            title={isOpen || winnerTeam ? "Team selection is locked while buzz is active." : ""}
           >
             {teamAName}
           </button>
           <button
             className={team === "B" ? "teamBtn teamBtnActive" : "teamBtn"}
             onClick={() => setTeam("B")}
-            disabled={uiStatus !== "CLOSED" && uiStatus !== "CONNECTING"}
-            title={
-              uiStatus === "OPEN" || uiStatus === "LOCKED_ME" || uiStatus === "LOCKED_OTHER"
-                ? "Team is locked while buzz is active."
-                : ""
-            }
+            disabled={isOpen || Boolean(winnerTeam)}
+            title={isOpen || winnerTeam ? "Team selection is locked while buzz is active." : ""}
           >
             {teamBName}
           </button>
         </div>
 
-        <button
-          className={`bigBuzz ${uiStatus === "OPEN" ? "bigBuzzOpen" : ""} ${
-            uiStatus === "LOCKED_ME" ? "bigBuzzWin" : ""
-          }`}
-          disabled={!canBuzz}
-          onClick={pressBuzz}
-          aria-disabled={!canBuzz}
-        >
-          {bigBuzzLabel}
+        <button className="bigBuzz" disabled={!canBuzz} onClick={pressBuzz}>
+          BUZZ
         </button>
 
         <div className="status">
@@ -158,17 +175,32 @@ export default function BuzzPage() {
             <strong>Status:</strong> {statusText}
           </div>
 
-          <div style={{ marginTop: 6, opacity: 0.85 }}>
-            {hintText}
+          <div style={{ marginTop: 8, opacity: 0.85 }}>
+            Winner: {winnerName ? <strong>{winnerName}</strong> : "—"}
+            {" · "}
+            Open: {isOpen ? <strong>Yes</strong> : <strong>No</strong>}
+            {winnerTeam && iWon ? (
+              <>
+                {" · "}
+                <strong>You won</strong>
+              </>
+            ) : null}
           </div>
 
-          {state ? (
-            <div style={{ marginTop: 10, opacity: 0.85 }}>
-              Winner: {showWinnerName ? <strong>{showWinnerName}</strong> : "—"}
-              {" · "}
-              Open: {isOpen ? <strong>Yes</strong> : <strong>No</strong>}
-            </div>
-          ) : null}
+          {/* Lightweight diagnostics so you can debug on a phone */}
+          <div style={{ marginTop: 10, opacity: 0.75, fontSize: 12, lineHeight: 1.2 }}>
+            Socket: <strong>{sock.connected ? "connected" : "disconnected"}</strong>
+            {" · "}
+            ID: <code>{sock.id || "—"}</code>
+            {" · "}
+            Last sync: <strong>{timeAgo(sock.lastSyncAt)}</strong>
+            {sock.lastError ? (
+              <>
+                {" · "}
+                Error: <span style={{ whiteSpace: "pre-wrap" }}>{sock.lastError}</span>
+              </>
+            ) : null}
+          </div>
         </div>
       </div>
     </div>

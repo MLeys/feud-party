@@ -17,6 +17,10 @@ function controlLabel(state: GameState) {
 export default function BoardStage({ state }: BoardStageProps) {
   const cur = state.current;
 
+  // Remount the strikes container whenever strikes changes,
+  // so CSS animations reliably re-trigger.
+  const strikesKey = `strikes:${cur?.strikes ?? 0}`;
+
   return (
     <div className="boardRoot">
       <div className="boardStage">
@@ -56,7 +60,7 @@ export default function BoardStage({ state }: BoardStageProps) {
               <div className="bankValue">{cur?.roundPoints ?? 0}</div>
             </div>
 
-            <div className="strikes">
+            <div className="strikes" key={strikesKey}>
               <div className={cur && cur.strikes >= 1 ? "strikeX strikeXActive" : "strikeX"}>X</div>
               <div className={cur && cur.strikes >= 2 ? "strikeX strikeXActive" : "strikeX"}>X</div>
               <div className={cur && cur.strikes >= 3 ? "strikeX strikeXActive" : "strikeX"}>X</div>

@@ -42,6 +42,9 @@ export default function BoardPage() {
   // Cache HTMLAudioElements to avoid re-downloading
   const audioCacheRef = useRef<Record<string, HTMLAudioElement>>({});
 
+  // Prevent double-firing audio if the same event is processed twice
+  const lastSoundEventIdRef = useRef<number>(-1);
+
   function getAudio(url: string): HTMLAudioElement {
     const cache = audioCacheRef.current;
     if (!cache[url]) {
@@ -69,8 +72,8 @@ export default function BoardPage() {
     }
 
     const p = a.play();
-    if (p && typeof p.catch === "function") {
-      p.catch(() => {
+    if (p && typeof (p as Promise<void>).catch === "function") {
+      (p as Promise<void>).catch(() => {
         // Most common: NotAllowedError until first user interaction
         setNeedsInteraction(true);
       });
@@ -80,10 +83,16 @@ export default function BoardPage() {
   function detectAndPlay(prev: GameState | null, next: GameState) {
     if (!prev) return;
 
+    // Only evaluate once per server event id (prevents duplicates)
+    if (typeof next.lastEventId === "number" && next.lastEventId === lastSoundEventIdRef.current) {
+      return;
+    }
+
     // Strike increased
     const prevStrikes = prev.current?.strikes ?? 0;
     const nextStrikes = next.current?.strikes ?? 0;
     if (nextStrikes > prevStrikes) {
+      lastSoundEventIdRef.current = next.lastEventId;
       playSfx(next, "strike");
       return;
     }
@@ -92,6 +101,7 @@ export default function BoardPage() {
     const prevRevealed = countRevealed(prev);
     const nextRevealed = countRevealed(next);
     if (nextRevealed > prevRevealed) {
+      lastSoundEventIdRef.current = next.lastEventId;
       playSfx(next, "reveal");
       return;
     }
@@ -100,6 +110,7 @@ export default function BoardPage() {
     const prevBuzzOpen = Boolean(prev.buzz?.open);
     const nextBuzzOpen = Boolean(next.buzz?.open);
     if (!prevBuzzOpen && nextBuzzOpen) {
+      lastSoundEventIdRef.current = next.lastEventId;
       playSfx(next, "buzzOpen");
       return;
     }
@@ -108,6 +119,7 @@ export default function BoardPage() {
     const prevWinner = prev.buzz?.winnerTeam ?? null;
     const nextWinner = next.buzz?.winnerTeam ?? null;
     if (!prevWinner && nextWinner) {
+      lastSoundEventIdRef.current = next.lastEventId;
       playSfx(next, "buzzLock");
       return;
     }
@@ -115,10 +127,12 @@ export default function BoardPage() {
     // Phase transitions
     if (prev.phase !== next.phase) {
       if (next.phase === "ROUND_END") {
+        lastSoundEventIdRef.current = next.lastEventId;
         playSfx(next, "roundEnd");
         return;
       }
       if (next.phase === "GAME_END") {
+        lastSoundEventIdRef.current = next.lastEventId;
         playSfx(next, "gameEnd");
         return;
       }
